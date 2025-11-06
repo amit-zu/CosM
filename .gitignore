@@ -1,0 +1,70 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+*.vcxproj.user
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+Debug/
+Release/
+x64/
+x86/
+ARM*/
+build/
+out/
+ipch/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+Makefile
+*.ninja
+*.ninja_deps
+*.ninja_log
+compile_commands.json
+Testing/
+CTestTestfile.cmake
+
+# IDE and system files
+*.swp
+*~
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# Crash logs / profiling
+*.pdb
+*.ilk
+*.idb
+*.tlog
+*.log
+
+# Generated files
+*.exe
+*.dll
+*.lib
+*.obj
+*.o
+*.a
+
+# Other temporary files
+*.tmp
+*.bak
+*.old
+*.sdf
+*.opensdf
+
+# Packages
+*.7z
+*.zip
+*.tar
+*.gz
+*.tgz
