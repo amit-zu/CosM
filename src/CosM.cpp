@@ -69,6 +69,7 @@ void print_bitboard(U64 bb) {
 
 U64 pawn_attacks[2][64];
 U64 knight_attacks[64];
+U64 king_attacks[64];
 
 U64 generate_pawn_attacks(int square, Color color) {
 	// piece bitboard
@@ -128,6 +129,31 @@ U64 generate_knight_attacks(int square) {
 	return attacks_bb;
 }
 
+U64 generate_king_attacks(int square) {
+	// piece bitboard
+	U64 king_bb{ 0ULL };
+
+	set_bit(king_bb, square);
+
+	U64 attacks_bb{ 0ULL };
+
+	if (king_bb & not_a_file) {
+		attacks_bb |= (king_bb >> 9); // top left
+		attacks_bb |= (king_bb >> 1); // left
+		attacks_bb |= (king_bb << 7); // bottom left
+	}
+	if (king_bb & not_h_file) {
+		attacks_bb |= (king_bb << 9); // top right
+		attacks_bb |= (king_bb << 1); // right
+		attacks_bb |= (king_bb >> 7); // bottom right
+	}
+
+	attacks_bb |= (king_bb << 8); // one down
+	attacks_bb |= (king_bb >> 8); // one up
+	
+	return attacks_bb;
+}
+
 void init_all_pawn_attacks() {
 	for (int square{ 0 }; square < 64; square++) {
 			pawn_attacks[white][square] = generate_pawn_attacks(square, white);
@@ -141,10 +167,17 @@ void init_all_knight_attacks() {
 	}
 }
 
+void init_all_king_attacks() {
+	for (int square{ 0 }; square < 64; square++) {
+		king_attacks[square] = generate_king_attacks(square);
+	}
+}
+
 int main()
 {
 	init_all_pawn_attacks();
 	init_all_knight_attacks();
+	init_all_king_attacks();
 
 	return 0;
 }
