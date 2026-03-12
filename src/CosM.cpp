@@ -154,6 +154,134 @@ U64 generate_king_attacks(int square) {
 	return attacks_bb;
 }
 
+U64 generate_bishop_attacks(int square) {
+	U64 occupancy_squares{ 0ULL };
+
+	int rank, file;
+	int target_rank = square / 8;
+	int target_file = square % 8;
+
+	for (rank = target_rank + 1, file = target_file + 1; rank <= 6 && file <= 6; rank++, file++) {
+		set_bit(occupancy_squares, rank * 8 + file);
+	}
+
+	for (rank = target_rank + 1, file = target_file - 1; rank <= 6 && file >= 1; rank++, file--) {
+		set_bit(occupancy_squares, rank * 8 + file);
+	}
+
+	for (rank = target_rank - 1, file = target_file + 1; rank >= 1 && file <= 6; rank--, file++) {
+		set_bit(occupancy_squares, rank * 8 + file);
+	}
+
+	for (rank = target_rank - 1, file = target_file - 1; rank >= 1 && file >= 1; rank--, file--) {
+		set_bit(occupancy_squares, rank * 8 + file);
+	}
+
+	return occupancy_squares;
+}
+
+U64 generate_bishop_attacks_on_the_fly(int square, U64 block) {
+	U64 attacks{ 0ULL };
+
+	int rank, file;
+	int target_rank = square / 8;
+	int target_file = square % 8;
+
+	for (rank = target_rank + 1, file = target_file + 1; rank <= 7 && file <= 7; rank++, file++) {
+		if (get_bit(block, rank * 8 + file)) {
+			break;
+		}
+		set_bit(attacks, rank * 8 + file);
+	}
+
+	for (rank = target_rank + 1, file = target_file - 1; rank <= 7 && file >= 0; rank++, file--) {
+		if (get_bit(block, rank * 8 + file)) {
+			break;
+		}
+		set_bit(attacks, rank * 8 + file);
+	}
+
+	for (rank = target_rank - 1, file = target_file + 1; rank >= 0 && file <= 7; rank--, file++) {
+		if (get_bit(block, rank * 8 + file)) {
+			break;
+		}
+		set_bit(attacks, rank * 8 + file);
+	}
+
+	for (rank = target_rank - 1, file = target_file - 1; rank >= 0 && file >= 0; rank--, file--) {
+		if (get_bit(block, rank * 8 + file)) {
+			break;
+		}
+		set_bit(attacks, rank * 8 + file);
+	}
+
+	return attacks;
+}
+
+U64 generate_rook_attacks(int square) {
+	U64 occupancy_squares{ 0ULL };
+
+	int rank, file;
+	int target_rank = square / 8;
+	int target_file = square % 8;
+
+	for (rank = target_rank + 1; rank <= 6; rank++) {
+		set_bit(occupancy_squares, rank * 8 + target_file);
+	}
+
+	for (rank = target_rank - 1; rank >= 1; rank--) {
+		set_bit(occupancy_squares, rank * 8 + target_file);
+	}
+
+	for (file = target_file + 1; file <= 6; file++) {
+		set_bit(occupancy_squares, target_rank * 8 + file);
+	}
+
+	for (file = target_file - 1; file >= 1; file--) {
+		set_bit(occupancy_squares, target_rank * 8 + file);
+	}
+
+	return occupancy_squares;
+}
+
+U64 generate_rook_attacks_on_the_fly(int square, U64 block) {
+	U64 attacks{ 0ULL };
+
+	int rank, file;
+	int target_rank = square / 8;
+	int target_file = square % 8;
+
+	for (rank = target_rank + 1; rank <= 7; rank++) {
+		if (get_bit(block, rank * 8 + target_file)) {
+			break;
+		}
+		set_bit(attacks, rank * 8 + target_file);
+	}
+
+	for (rank = target_rank - 1; rank >= 0; rank--) {
+		if (get_bit(block, rank * 8 + target_file)) {
+			break;
+		}
+		set_bit(attacks, rank * 8 + target_file);
+	}
+
+	for (file = target_file + 1; file <= 7; file++) {
+		if (get_bit(block, target_rank * 8 + file)) {
+			break;
+		}
+		set_bit(attacks, target_rank * 8 + file);
+	}
+
+	for (file = target_file - 1; file >= 0; file--) {
+		if (get_bit(block, target_rank * 8 + file)) {
+			break;
+		}
+		set_bit(attacks, target_rank * 8 + file);
+	}
+
+	return attacks;
+}
+
 void init_all_pawn_attacks() {
 	for (int square{ 0 }; square < 64; square++) {
 			pawn_attacks[white][square] = generate_pawn_attacks(square, white);
@@ -175,9 +303,18 @@ void init_all_king_attacks() {
 
 int main()
 {
-	init_all_pawn_attacks();
-	init_all_knight_attacks();
-	init_all_king_attacks();
+	U64 blocker_bitboard{ 0ULL };
+
+	set_bit(blocker_bitboard, a2);
+	set_bit(blocker_bitboard, b2);
+	set_bit(blocker_bitboard, c2);
+	set_bit(blocker_bitboard, d2);
+	set_bit(blocker_bitboard, e2);
+	set_bit(blocker_bitboard, f2);
+	set_bit(blocker_bitboard, g2);
+	set_bit(blocker_bitboard, h2);
+
+	print_bitboard(generate_bishop_attacks_on_the_fly(d4, blocker_bitboard));
 
 	return 0;
 }
