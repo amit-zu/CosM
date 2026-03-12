@@ -7,7 +7,10 @@ using namespace std;
 using U64 = unsigned long long;
 
 const U64 not_a_file{ 18374403900871474942ULL };
+const U64 not_ab_file{ 18229723555195321596ULL };
 const U64 not_h_file{ 9187201950435737471ULL };
+const U64 not_gh_file{ 4557430888798830399ULL };
+
 
 enum Color {
 	white, black
@@ -39,13 +42,20 @@ void pop_bit(U64& bb, int square) {
 }
 
 void print_bitboard(U64 bb) {
+	const char* GREEN = "\033[92m";
+	const char* RESET = "\033[0m";
+
 	cout << endl;
 	for (int rank{ 0 }; rank < 8; ++rank) {
 		cout << (8 - rank) << "| ";
 
 		for (int file{ 0 }; file < 8; ++file) {
 			int square = rank * 8 + file;
-			cout << (get_bit(bb, square) ? 1 : 0) << " ";
+
+			if (get_bit(bb, square))
+				cout << GREEN << "1" << RESET << " ";
+			else
+				cout << "0 ";
 		}
 
 		cout << endl;
@@ -58,6 +68,7 @@ void print_bitboard(U64 bb) {
 // Attacks
 
 U64 pawn_attacks[2][64];
+U64 knight_attacks[64];
 
 U64 generate_pawn_attacks(int square, Color color) {
 	// piece bitboard
@@ -65,27 +76,56 @@ U64 generate_pawn_attacks(int square, Color color) {
 
 	set_bit(pawn_bb, square);
 
-	// attack bitboard
-	U64 attack_bb{ 0ULL };
+	// attacks bitboard
+	U64 attacks_bb{ 0ULL };
 
 	if (color == white) {
 		if (pawn_bb & not_h_file) {
-			attack_bb |= (pawn_bb >> 7); // right attack
+			attacks_bb |= (pawn_bb >> 7); // right attack
 		}
 		if (pawn_bb & not_a_file) {
-			attack_bb |= (pawn_bb >> 9); // left attack
+			attacks_bb |= (pawn_bb >> 9); // left attack
 		}
 	}
 	else {
 		if (pawn_bb & not_a_file) {
-			attack_bb |= (pawn_bb << 7); // left attack
+			attacks_bb |= (pawn_bb << 7); // left attack
 		}
 		if (pawn_bb & not_h_file) {
-			attack_bb |= (pawn_bb << 9); // right attack
+			attacks_bb |= (pawn_bb << 9); // right attack
 		}
 	}
 
-	return attack_bb;
+	return attacks_bb;
+}
+
+U64 generate_knight_attacks(int square) {
+	// piece bitboard
+	U64 knight_bb{ 0ULL };
+
+	set_bit(knight_bb, square);
+
+	// attacks bitboard
+	U64 attacks_bb{ 0ULL };
+
+	if (knight_bb & not_a_file) {
+		attacks_bb |= (knight_bb >> 17); // two up one left
+		attacks_bb |= (knight_bb << 15); // two down one left
+	}
+	if (knight_bb & not_h_file) {
+		attacks_bb |= (knight_bb >> 15); // two up one right 
+		attacks_bb |= (knight_bb << 17); // two down one right
+	}
+	if (knight_bb & not_ab_file) {
+		attacks_bb |= (knight_bb >> 10); // two left one up
+		attacks_bb |= (knight_bb << 6); // two left one down
+	}
+	if (knight_bb & not_gh_file) {
+		attacks_bb |= (knight_bb >> 6); // two right one up
+		attacks_bb |= (knight_bb << 10); // two right one down 
+	}
+
+	return attacks_bb;
 }
 
 void init_all_pawn_attacks() {
@@ -95,11 +135,16 @@ void init_all_pawn_attacks() {
 	}
 }
 
+void init_all_knight_attacks() {
+	for (int square{ 0 }; square < 64; square++) {
+		knight_attacks[square] = generate_knight_attacks(square);
+	}
+}
+
 int main()
 {
 	init_all_pawn_attacks();
-
-	print_bitboard(pawn_attacks[black][d1]);
+	init_all_knight_attacks();
 
 	return 0;
 }
