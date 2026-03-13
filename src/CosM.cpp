@@ -53,6 +53,15 @@ int count_bits(U64 bb) {
 	return counter;
 }
 
+int get_least_significant_1_bit(U64 bb) {
+	if (bb) {
+		return count_bits((bb & -bb) -1);
+	}
+	else {
+		return -1;
+	}
+}
+
 void print_bitboard(U64 bb) {
 	const char* GREEN = "\033[92m";
 	const char* RESET = "\033[0m";
@@ -317,15 +326,9 @@ int main()
 {
 	U64 blocker_bitboard{ 0ULL };
 
-	set_bit(blocker_bitboard, a2);
-	set_bit(blocker_bitboard, b2);
-	set_bit(blocker_bitboard, c2);
-	set_bit(blocker_bitboard, d2);
-	set_bit(blocker_bitboard, e2);
-	set_bit(blocker_bitboard, f2);
 	set_bit(blocker_bitboard, g2);
 
-	cout << count_bits(blocker_bitboard) << endl;
+	cout << get_least_significant_1_bit(blocker_bitboard) << endl;
 
 	return 0;
 }
