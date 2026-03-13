@@ -41,6 +41,18 @@ void pop_bit(U64& bb, int square) {
 	bb &= ~(1ULL << square);
 }
 
+int count_bits(U64 bb) {
+	int counter = 0;
+
+	while (bb > 0) {
+		counter++;
+
+		bb &= (bb - 1);
+	}
+
+	return counter;
+}
+
 void print_bitboard(U64 bb) {
 	const char* GREEN = "\033[92m";
 	const char* RESET = "\033[0m";
@@ -312,9 +324,8 @@ int main()
 	set_bit(blocker_bitboard, e2);
 	set_bit(blocker_bitboard, f2);
 	set_bit(blocker_bitboard, g2);
-	set_bit(blocker_bitboard, h2);
 
-	print_bitboard(generate_bishop_attacks_on_the_fly(d4, blocker_bitboard));
+	cout << count_bits(blocker_bitboard) << endl;
 
 	return 0;
 }
