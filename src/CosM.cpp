@@ -62,6 +62,22 @@ int get_least_significant_1_bit(U64 bb) {
 	}
 }
 
+U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask) {
+	U64 occupancy{ 0ULL };
+
+	for (int count{ 0 }; count < bits_in_mask; count++) {
+		int square = get_least_significant_1_bit(attack_mask);
+
+		pop_bit(attack_mask, square);
+
+		if (index & (1 << count)) {
+			occupancy |= (1ULL << square);
+		}
+	}
+
+	return occupancy;
+}
+
 void print_bitboard(U64 bb) {
 	const char* GREEN = "\033[92m";
 	const char* RESET = "\033[0m";
@@ -324,11 +340,9 @@ void init_all_king_attacks() {
 
 int main()
 {
-	U64 blocker_bitboard{ 0ULL };
+	U64 rook_attacks = generate_rook_attacks(a1);
 
-	set_bit(blocker_bitboard, g2);
-
-	cout << get_least_significant_1_bit(blocker_bitboard) << endl;
+	print_bitboard(set_occupancy(4095, count_bits(rook_attacks), rook_attacks));
 
 	return 0;
 }
