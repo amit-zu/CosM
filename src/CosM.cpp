@@ -27,6 +27,28 @@ enum Square {
 	a1, b1, c1, d1, e1, f1, g1, h1,
 };
 
+int relevant_bishop_bits[64] = {
+	6, 5, 5, 5, 5, 5, 5, 6,
+	5, 5, 5, 5, 5, 5, 5, 5,
+	5, 5, 7, 7, 7, 7, 5, 5,
+	5, 5, 7, 9, 9, 7, 5, 5,
+	5, 5, 7, 9, 9, 7, 5, 5,
+	5, 5, 7, 7, 7, 7, 5, 5,
+	5, 5, 5, 5, 5, 5, 5, 5,
+	6, 5, 5, 5, 5, 5, 5, 6
+};
+
+int relevant_rook_bits[64] = {
+	12, 11, 11, 11, 11, 11, 11, 12,
+	11, 10, 10, 10, 10, 10, 10, 11,
+	11, 10, 10, 10, 10, 10, 10, 11,
+	11, 10, 10, 10, 10, 10, 10, 11,
+	11, 10, 10, 10, 10, 10, 10, 11,
+	11, 10, 10, 10, 10, 10, 10, 11,
+	11, 10, 10, 10, 10, 10, 10, 11,
+	12, 11, 11, 11, 11, 11, 11, 12
+};
+
 // Bit operations
 
 bool get_bit(U64 bb, int square) {
@@ -340,9 +362,13 @@ void init_all_king_attacks() {
 
 int main()
 {
-	U64 rook_attacks = generate_rook_attacks(a1);
+	for (int rank{ 0 }; rank < 8; rank++) {
+		for (int file{ 0 }; file < 8; file++) {
+			cout << count_bits(generate_rook_attacks(rank * 8 + file)) << ", ";
+		}
 
-	print_bitboard(set_occupancy(4095, count_bits(rook_attacks), rook_attacks));
+		cout << endl;
+	}
 
 	return 0;
 }
