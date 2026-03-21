@@ -246,11 +246,31 @@ void print_bitboard(U64 bb) {
 	cout << "   a b c d e f g h" << endl;
 }
 
+U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask) {
+	U64 occupancy{ 0ULL };
+
+	for (int count{ 0 }; count < bits_in_mask; count++) {
+		int square = get_least_significant_1_bit(attack_mask);
+
+		pop_bit(attack_mask, square);
+
+		if (index & (1 << count)) {
+			occupancy |= (1ULL << square);
+		}
+	}
+
+	return occupancy;
+}
+
 // Attacks
 
 U64 pawn_attacks[2][64];
 U64 knight_attacks[64];
 U64 king_attacks[64];
+U64 bishop_masks[64];
+U64 rook_masks[64];
+U64 bishop_attacks[64][512];
+U64 rook_attacks[64][4096];
 
 U64 generate_pawn_attacks(int square, Color color) {
 	// piece bitboard
@@ -463,6 +483,22 @@ U64 generate_rook_attacks_on_the_fly(int square, U64 block) {
 	return attacks;
 }
 
+U64 get_bishop_attacks(int square, U64 occupancy) {
+	occupancy &= bishop_masks[square];
+	occupancy *= bishop_magics[square];
+	occupancy >>= 64 - relevant_bishop_bits[square];
+
+	return bishop_attacks[square][occupancy];
+}
+
+U64 get_rook_attacks(int square, U64 occupancy) {
+	occupancy &= rook_masks[square];
+	occupancy *= rook_magics[square];
+	occupancy >>= 64 - relevant_rook_bits[square];
+
+	return rook_attacks[square][occupancy];
+}
+
 void init_all_pawn_attacks() {
 	for (int square{ 0 }; square < 64; square++) {
 			pawn_attacks[white][square] = generate_pawn_attacks(square, white);
@@ -482,20 +518,33 @@ void init_all_king_attacks() {
 	}
 }
 
-U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask) {
-	U64 occupancy{ 0ULL };
-
-	for (int count{ 0 }; count < bits_in_mask; count++) {
-		int square = get_least_significant_1_bit(attack_mask);
-
-		pop_bit(attack_mask, square);
-
-		if (index & (1 << count)) {
-			occupancy |= (1ULL << square);
-		}
+void init_sliders_attack_tables(Piece piece) {
+	if (piece != bishop && piece != rook) {
+		return;
 	}
 
-	return occupancy;
+	for (int square{ 0 }; square < 64; square++)
+	{
+		bishop_masks[square] = generate_bishop_attacks(square);
+		rook_masks[square] = generate_rook_attacks(square);
+
+		U64 attack_mask = piece == bishop ? bishop_masks[square] : rook_masks[square];
+		int relevant_bits_count = count_bits(attack_mask);
+		int occupancy_indices = 1 << relevant_bits_count;
+
+		for (int index{ 0 }; index < occupancy_indices; index++) {
+			if (piece == bishop) {
+				U64 occupancy = set_occupancy(index, relevant_bits_count, attack_mask);
+				int magic_index = (occupancy * bishop_magics[square]) >> (64 - relevant_bishop_bits[square]);
+				bishop_attacks[square][magic_index] = generate_bishop_attacks_on_the_fly(square, occupancy);
+			}
+			else {
+				U64 occupancy = set_occupancy(index, relevant_bits_count, attack_mask);
+				int magic_index = (occupancy * rook_magics[square]) >> (64 - relevant_rook_bits[square]);
+				rook_attacks[square][magic_index] = generate_rook_attacks_on_the_fly(square, occupancy);
+			}
+		}
+	}
 }
 
 unsigned int state = 12332112377;
@@ -527,72 +576,76 @@ U64 generate_magic_number_candidate() {
 	return get_random_u64_number() & get_random_u64_number() & get_random_u64_number();
 }
 
-U64 find_magic_number(int square, int relevant_bits, Piece piece) {
-	U64 occupancies[4096];
-	U64 attacks[4096];
-	U64 used_attacks[4096];
+//U64 find_magic_number(int square, int relevant_bits, Piece piece) {
+//	U64 occupancies[4096];
+//	U64 attacks[4096];
+//	U64 used_attacks[4096];
+//
+//	U64 attack_mask{ 0ULL };
+//
+//	if (piece == bishop) {
+//		attack_mask = generate_bishop_attacks(square);
+//	}
+//	else if (piece == rook) {
+//		attack_mask = generate_rook_attacks(square);
+//	}
+//	else {
+//		return 0ULL;
+//	}
+//
+//	U64 occupancy_indices = 1 << relevant_bits;
+//
+//	for (int index{ 0 }; index < occupancy_indices; index++) {
+//		occupancies[index] = set_occupancy(index, relevant_bits, attack_mask);
+//		attacks[index] = piece == bishop ? generate_bishop_attacks_on_the_fly(square, occupancies[index])
+//			: generate_rook_attacks_on_the_fly(square, occupancies[index]);
+//	}
+//
+//	for (int index{ 0 }; index < 10000000; index++) {
+//		U64 magic_number_candidate = generate_magic_number_candidate();
+//
+//		if (count_bits((attack_mask * magic_number_candidate) & 0xFF00000000000000) < 6) {
+//			continue;
+//		}
+//
+//		std::memset(used_attacks, 0ULL, sizeof(used_attacks));
+//
+//		// test magic index
+//
+//		bool flag { false };
+//
+//		for (int index{ 0 }; !flag && index < occupancy_indices; index++) {
+//			int magic_index = (int)((occupancies[index] * magic_number_candidate) >> (64 - relevant_bits));
+//
+//			if (used_attacks[magic_index] == 0ULL) {
+//				used_attacks[magic_index] = attacks[index];
+//			}
+//			else if (used_attacks[magic_index] != attacks[index]) {
+//				flag = true;
+//			}
+//		}
+//
+//		if (!flag) {
+//			return magic_number_candidate;
+//		}
+//	}
+//
+//	return 0ULL;
+//}
 
-	U64 attack_mask{ 0ULL };
-
-	if (piece == bishop) {
-		attack_mask = generate_bishop_attacks(square);
-	}
-	else if (piece == rook) {
-		attack_mask = generate_rook_attacks(square);
-	}
-	else {
-		return 0ULL;
-	}
-
-	U64 occupancy_indices = 1 << relevant_bits;
-
-	for (int index{ 0 }; index < occupancy_indices; index++) {
-		occupancies[index] = set_occupancy(index, relevant_bits, attack_mask);
-		attacks[index] = piece == bishop ? generate_bishop_attacks_on_the_fly(square, occupancies[index])
-			: generate_rook_attacks_on_the_fly(square, occupancies[index]);
-	}
-
-	for (int index{ 0 }; index < 10000000; index++) {
-		U64 magic_number_candidate = generate_magic_number_candidate();
-
-		if (count_bits((attack_mask * magic_number_candidate) & 0xFF00000000000000) < 6) {
-			continue;
-		}
-
-		std::memset(used_attacks, 0ULL, sizeof(used_attacks));
-
-		// test magic index
-
-		bool flag { false };
-
-		for (int index{ 0 }; !flag && index < occupancy_indices; index++) {
-			int magic_index = (int)((occupancies[index] * magic_number_candidate) >> (64 - relevant_bits));
-
-			if (used_attacks[magic_index] == 0ULL) {
-				used_attacks[magic_index] = attacks[index];
-			}
-			else if (used_attacks[magic_index] != attacks[index]) {
-				flag = true;
-			}
-		}
-
-		if (!flag) {
-			return magic_number_candidate;
-		}
-	}
-
-	return 0ULL;
-}
-
-void init_magic_numbers() {
-	for (int square{ 0 }; square < 64; square++) {
-		cout << find_magic_number(square, relevant_bishop_bits[square], bishop) << "ULL," << endl;
-	}
-}
+//void init_magic_numbers() {
+//	for (int square{ 0 }; square < 64; square++) {
+//		cout << find_magic_number(square, relevant_bishop_bits[square], bishop) << "ULL," << endl;
+//	}
+//}
 
 int main()
 {
-	init_magic_numbers();
+	init_sliders_attack_tables(bishop);
+	init_sliders_attack_tables(rook);
+	init_all_pawn_attacks();
+	init_all_king_attacks();
+	init_all_king_attacks();
 
 	return 0;
 }
