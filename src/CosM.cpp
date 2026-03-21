@@ -3,9 +3,13 @@
 
 #include "CosM.h"
 #include <cstring>
+#include <cstdint>
+#include <format>
+#include <string>
 
 using namespace std;
 using U64 = unsigned long long;
+using U8 = uint8_t;
 
 const U64 not_a_file{ 18374403900871474942ULL };
 const U64 not_ab_file{ 18229723555195321596ULL };
@@ -147,11 +151,22 @@ const U64 rook_magics[64]{
 };
 
 enum Color {
-	white, black
+	white, black, none
 };
 
 enum Piece {
-	pawn, king, queen, knight, bishop, rook
+	pawn, king, queen, knight, bishop, rook, no_piece
+};
+
+enum PieceChar {
+	P, K, Q, N, B, R, p, k, q, n, b, r, X
+};
+
+char piece_chars[13] = "PKQNBRpkqnbr";
+
+const char* piece_unicode[12] = {
+	"♙", "♔", "♕", "♘", "♗", "♖",
+	"♟", "♚", "♛", "♞", "♝", "♜"
 };
 
 enum Square {
@@ -162,7 +177,22 @@ enum Square {
 	a4, b4, c4, d4, e4, f4, g4, h4,
 	a3, b3, c3, d3, e3, f3, g3, h3,
 	a2, b2, c2, d2, e2, f2, g2, h2,
-	a1, b1, c1, d1, e1, f1, g1, h1,
+	a1, b1, c1, d1, e1, f1, g1, h1, no_square
+};
+
+
+/*
+	white can castle kingside bits - 0001
+	white can castle queenside bits - 0010
+	black can castle kingside bits - 0100
+	black can castle queenside bits - 1000
+
+	example:
+
+	1011 means black can castle queenside and white can castle both ways
+*/
+enum CastlingType {
+	wk = 1, wq = 2, bk = 4, bq = 8
 };
 
 int relevant_bishop_bits[64] = {
@@ -186,6 +216,12 @@ int relevant_rook_bits[64] = {
 	11, 10, 10, 10, 10, 10, 10, 11,
 	12, 11, 11, 11, 11, 11, 11, 12
 };
+
+U64 piece_occupancies[12];
+U64 color_occupancies[3]; //white, black, none
+Color side_to_move = none;
+int enpassant_square = no_square;
+U8 castle;
 
 // Bit operations
 
@@ -242,7 +278,42 @@ void print_bitboard(U64 bb) {
 		cout << endl;
 	}
 
-	cout << "   _______________" << endl;
+	cout << "   ________________" << endl;
+	cout << "   a b c d e f g h" << endl;
+}
+
+void print_board() {
+	const char* GREEN = "\033[92m";
+	const char* RESET = "\033[0m";
+
+	for (int rank{ 0 }; rank < 8; ++rank) {
+		cout << (8 - rank) << "| ";
+
+		for (int file{ 0 }; file < 8; ++file) {
+			int square = rank * 8 + file;
+
+			int piece = X;
+
+			for (int color_piece = P; color_piece < X; color_piece++) {
+				U64 piece_occupancy = piece_occupancies[color_piece];
+
+				if (get_bit(piece_occupancy, square)) {
+					piece = color_piece;
+				}
+			}
+
+			char display_char[2] = { (piece == X) ? '.' : piece_chars[piece], '\0' };
+
+			if (piece == X)
+				cout << std::format(" {}", display_char);
+			else
+				cout << GREEN << std::format(" {}", display_char) << RESET;
+		}
+
+		cout << endl;
+	}
+
+	cout << "   ________________" << endl;
 	cout << "   a b c d e f g h" << endl;
 }
 
@@ -273,12 +344,10 @@ U64 bishop_attacks[64][512];
 U64 rook_attacks[64][4096];
 
 U64 generate_pawn_attacks(int square, Color color) {
-	// piece bitboard
 	U64 pawn_bb{ 0ULL };
 
 	set_bit(pawn_bb, square);
 
-	// attacks bitboard
 	U64 attacks_bb{ 0ULL };
 
 	if (color == white) {
@@ -289,7 +358,7 @@ U64 generate_pawn_attacks(int square, Color color) {
 			attacks_bb |= (pawn_bb >> 9); // left attack
 		}
 	}
-	else {
+	else if (color == black){
 		if (pawn_bb & not_a_file) {
 			attacks_bb |= (pawn_bb << 7); // left attack
 		}
@@ -302,12 +371,10 @@ U64 generate_pawn_attacks(int square, Color color) {
 }
 
 U64 generate_knight_attacks(int square) {
-	// piece bitboard
 	U64 knight_bb{ 0ULL };
 
 	set_bit(knight_bb, square);
 
-	// attacks bitboard
 	U64 attacks_bb{ 0ULL };
 
 	if (knight_bb & not_a_file) {
@@ -331,7 +398,6 @@ U64 generate_knight_attacks(int square) {
 }
 
 U64 generate_king_attacks(int square) {
-	// piece bitboard
 	U64 king_bb{ 0ULL };
 
 	set_bit(king_bb, square);
@@ -646,6 +712,8 @@ int main()
 	init_all_pawn_attacks();
 	init_all_king_attacks();
 	init_all_king_attacks();
+
+	print_board();
 
 	return 0;
 }
