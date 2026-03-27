@@ -6,10 +6,18 @@
 #include <cstdint>
 #include <format>
 #include <string>
+#include <algorithm>
+#include <iterator>
+#include <vector>
+#include <iostream>
 
 using namespace std;
 using U64 = unsigned long long;
 using U8 = uint8_t;
+
+// fen string
+string empty_board_fen = "8/8/8/8/8/8/8/8 w - - 0 1";
+string starting_pos_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 const U64 not_a_file{ 18374403900871474942ULL };
 const U64 not_ab_file{ 18229723555195321596ULL };
@@ -164,6 +172,24 @@ enum PieceChar {
 
 char piece_chars[13] = "PKQNBRpkqnbr";
 
+int get_piece_from_char(char c) {
+	switch (c) {
+	case 'P': return P;
+	case 'K': return K;
+	case 'Q': return Q;
+	case 'N': return N;
+	case 'B': return B;
+	case 'R': return R;
+	case 'p': return p;
+	case 'k': return k;
+	case 'q': return q;
+	case 'n': return n;
+	case 'b': return b;
+	case 'r': return r;
+	default:  return X;
+	}
+}
+
 const char* piece_unicode[12] = {
 	"♙", "♔", "♕", "♘", "♗", "♖",
 	"♟", "♚", "♛", "♞", "♝", "♜"
@@ -180,6 +206,42 @@ enum Square {
 	a1, b1, c1, d1, e1, f1, g1, h1, no_square
 };
 
+string square_to_coordinate(int square) {
+	if (square == no_square) {
+		return "no_square";
+	}
+
+	if (square < a8 || square > h1) {
+		return "invalid";
+	}
+
+	char file = 'a' + (square % 8);
+	char rank = '8' - (square / 8);
+
+	return string{ file, rank };
+}
+
+int coordinate_to_square(string& coord) {
+	if (coord == "no_square") {
+		return no_square;
+	}
+
+	if (coord.size() != 2) {
+		return no_square; // invalid
+	}
+
+	char file = coord[0];
+	char rank = coord[1];
+
+	if (file < 'a' || file > 'h' || rank < '1' || rank > '8') {
+		return no_square; // invalid
+	}
+
+	int file_index = file - 'a';
+	int rank_index = '8' - rank;
+
+	return rank_index * 8 + file_index;
+}
 
 /*
 	white can castle kingside bits - 0001
@@ -314,7 +376,107 @@ void print_board() {
 	}
 
 	cout << "   ________________" << endl;
-	cout << "   a b c d e f g h" << endl;
+	cout << "   a b c d e f g h" << endl << endl;
+
+	cout << std::format("to move: {}, ", ((side_to_move == white) ? "white" : ((side_to_move == black) ? "black" : "none")));
+
+	cout << std::format("en passant: {}, ", (enpassant_square != no_square) ? square_to_coordinate(enpassant_square) : "-");
+
+	cout << std::format("castle: {}{}{}{}", 
+		(castle & wk) ? "K" : "-", 
+		(castle & wq) ? "Q" : "-", 
+		(castle & bk) ? "k" : "-", 
+		(castle & bq) ? "q" : "-");
+
+	cout << endl;
+}
+
+vector<string> split(const string& s, char delimiter) {
+	vector<string> result;
+	string current;
+
+	for (char c : s) {
+		if (c == delimiter) {
+			result.push_back(current);
+			current.clear();
+		}
+		else {
+			current += c;
+		}
+	}
+
+	result.push_back(current);
+	return result;
+}
+
+void parse_fen(const string& fen) {
+	std::memset(piece_occupancies, 0ULL, sizeof(piece_occupancies));
+	std::memset(color_occupancies, 0ULL, sizeof(color_occupancies));
+
+	side_to_move = none;
+	enpassant_square = no_square;
+	castle = 0;
+
+	vector<string> fen_parts = split(fen, ' ');
+
+	string pieces_string = fen_parts[0];
+	string side_to_move_string = fen_parts[1];
+	string castling_string = fen_parts[2];
+	string en_passant_string = fen_parts[3];
+	string half_move_string = fen_parts[4];
+	string full_move_string = fen_parts[5];
+
+	int square = 0;
+
+	for (int i = 0; i < pieces_string.length(); i++)
+	{
+		char c = fen[i];
+
+		if (c == ' ') {
+			break;
+		} 
+
+		if (c == '/') {
+			continue;
+		}
+
+		if (c >= '1' && c <= '8') {
+			square += (c - '0');
+		}
+		else {
+			int piece = get_piece_from_char(c);
+
+			if (piece != X) {
+				set_bit(piece_occupancies[piece], square);
+				square++;
+			}
+		}
+	}
+
+	for (char c : castling_string) {
+		switch (c) {
+		case '-': break;
+		case 'K': castle |= wk; break;
+		case 'Q': castle |= wq; break;
+		case 'k': castle |= bk; break;
+		case 'q': castle |= bq; break;
+		}
+	}
+
+	side_to_move = (side_to_move_string == "w") ? white : black;
+
+	enpassant_square = (en_passant_string == "-") ? no_square : coordinate_to_square(en_passant_string);
+
+	for (int piece = P; piece <= R; piece++) {
+		color_occupancies[white] |= piece_occupancies[piece];
+	}
+
+	for (int piece = p; piece <= r; piece++) {
+		color_occupancies[black] |= piece_occupancies[piece];
+	}
+
+	color_occupancies[none] |= color_occupancies[white];
+	color_occupancies[none] |= color_occupancies[black];
 }
 
 U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask) {
@@ -712,6 +874,8 @@ int main()
 	init_all_pawn_attacks();
 	init_all_king_attacks();
 	init_all_king_attacks();
+
+	parse_fen(starting_pos_fen);
 
 	print_board();
 
