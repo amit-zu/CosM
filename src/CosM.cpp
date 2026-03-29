@@ -727,6 +727,27 @@ U64 get_rook_attacks(int square, U64 occupancy) {
 	return rook_attacks[square][occupancy];
 }
 
+U64 get_queen_attacks(int square, U64 occupancy) {
+	U64 queen_attacks{ 0ULL };
+
+	U64 bishop_occupancy = occupancy;
+	U64 rook_occupancy = occupancy;
+
+	bishop_occupancy &= bishop_masks[square];
+	bishop_occupancy *= bishop_magics[square];
+	bishop_occupancy >>= 64 - relevant_bishop_bits[square];
+
+	queen_attacks |= bishop_attacks[square][bishop_occupancy];
+
+	rook_occupancy &= rook_masks[square];
+	rook_occupancy *= rook_magics[square];
+	rook_occupancy >>= 64 - relevant_rook_bits[square];
+
+	queen_attacks |= rook_attacks[square][rook_occupancy];
+
+	return queen_attacks;
+}
+
 void init_all_pawn_attacks() {
 	for (int square{ 0 }; square < 64; square++) {
 			pawn_attacks[white][square] = generate_pawn_attacks(square, white);
@@ -877,7 +898,9 @@ int main()
 
 	parse_fen(starting_pos_fen);
 
-	print_board();
+	//print_board();
+
+	U64 blocker = 0ULL;
 
 	return 0;
 }
