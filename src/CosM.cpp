@@ -18,6 +18,7 @@ using U8 = uint8_t;
 // fen string
 string empty_board_fen = "8/8/8/8/8/8/8/8 w - - 0 1";
 string starting_pos_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+string tricky_pos_fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 
 const U64 not_a_file{ 18374403900871474942ULL };
 const U64 not_ab_file{ 18229723555195321596ULL };
@@ -25,22 +26,22 @@ const U64 not_h_file{ 9187201950435737471ULL };
 const U64 not_gh_file{ 4557430888798830399ULL };
 
 const U64 bishop_magics[64] {
-145417181646062688ULL,
-655497917235232ULL,
-290526160728630272ULL,
-72656406969843776ULL,
-565217721335826ULL,
-72622811801260040ULL,
-9836144165778425376ULL,
-1729734255821328400ULL,
-288335964209152064ULL,
-9838131158972645766ULL,
-1224988034660860224ULL,
-72062009339940864ULL,
-4539953305355360ULL,
-585513100393062402ULL,
-576790751955125248ULL,
-54611660257690688ULL,
+1187782080865792ULL,
+292735109795185953ULL,
+1321844025459736576ULL,
+2291936283084801ULL,
+4611985360535290882ULL,
+571754770595904ULL,
+13871792773172166676ULL,
+84587664116942848ULL,
+144150668819040528ULL,
+92703748653104ULL,
+1243293698465267747ULL,
+4630971469567886208ULL,
+5070960646423808ULL,
+9232488104978448448ULL,
+1153066657338951937ULL,
+4635048596130498562ULL,
 9227875773989273728ULL,
 40541227367596112ULL,
 19149274965283330ULL,
@@ -88,7 +89,7 @@ const U64 bishop_magics[64] {
 580965752226515203ULL,
 1159896841272688776ULL,
 9799850450081026177ULL,
-18093571948281872ULL
+18093571948281872ULL,
 };
 
 const U64 rook_magics[64]{
@@ -155,7 +156,7 @@ const U64 rook_magics[64]{
 1873779091766789143ULL,
 294423135149687874ULL,
 1333910206732173345ULL,
-20068301866146ULL
+20068301866146ULL,
 };
 
 enum Color {
@@ -617,31 +618,31 @@ U64 generate_bishop_attacks_on_the_fly(int square, U64 block) {
 	int target_file = square % 8;
 
 	for (rank = target_rank + 1, file = target_file + 1; rank <= 7 && file <= 7; rank++, file++) {
+		set_bit(attacks, rank * 8 + file);
 		if (get_bit(block, rank * 8 + file)) {
 			break;
 		}
-		set_bit(attacks, rank * 8 + file);
 	}
 
 	for (rank = target_rank + 1, file = target_file - 1; rank <= 7 && file >= 0; rank++, file--) {
+		set_bit(attacks, rank * 8 + file);
 		if (get_bit(block, rank * 8 + file)) {
 			break;
 		}
-		set_bit(attacks, rank * 8 + file);
 	}
 
 	for (rank = target_rank - 1, file = target_file + 1; rank >= 0 && file <= 7; rank--, file++) {
+		set_bit(attacks, rank * 8 + file);
 		if (get_bit(block, rank * 8 + file)) {
 			break;
 		}
-		set_bit(attacks, rank * 8 + file);
 	}
 
 	for (rank = target_rank - 1, file = target_file - 1; rank >= 0 && file >= 0; rank--, file--) {
+		set_bit(attacks, rank * 8 + file);
 		if (get_bit(block, rank * 8 + file)) {
 			break;
 		}
-		set_bit(attacks, rank * 8 + file);
 	}
 
 	return attacks;
@@ -681,31 +682,31 @@ U64 generate_rook_attacks_on_the_fly(int square, U64 block) {
 	int target_file = square % 8;
 
 	for (rank = target_rank + 1; rank <= 7; rank++) {
+		set_bit(attacks, rank * 8 + target_file);
 		if (get_bit(block, rank * 8 + target_file)) {
 			break;
 		}
-		set_bit(attacks, rank * 8 + target_file);
 	}
 
 	for (rank = target_rank - 1; rank >= 0; rank--) {
+		set_bit(attacks, rank * 8 + target_file);
 		if (get_bit(block, rank * 8 + target_file)) {
 			break;
 		}
-		set_bit(attacks, rank * 8 + target_file);
 	}
 
 	for (file = target_file + 1; file <= 7; file++) {
+		set_bit(attacks, target_rank * 8 + file);
 		if (get_bit(block, target_rank * 8 + file)) {
 			break;
 		}
-		set_bit(attacks, target_rank * 8 + file);
 	}
 
 	for (file = target_file - 1; file >= 0; file--) {
+		set_bit(attacks, target_rank * 8 + file);
 		if (get_bit(block, target_rank * 8 + file)) {
 			break;
 		}
-		set_bit(attacks, target_rank * 8 + file);
 	}
 
 	return attacks;
@@ -821,10 +822,79 @@ U64 get_random_u64_number() {
 	return n1 | (n2 << 16) | (n3 << 32) | (n4 << 48);
 }
 
-U64 generate_magic_number_candidate() {
-	return get_random_u64_number() & get_random_u64_number() & get_random_u64_number();
+bool is_square_attacked(int square, Color side) {
+	if (side == white) {
+		if (pawn_attacks[black][square] & piece_occupancies[P]) {
+			return true;
+		}
+		if (king_attacks[square] & piece_occupancies[K]) {
+			return true;
+		}
+		if (knight_attacks[square] & piece_occupancies[N]) {
+			return true;
+		}
+		if (get_bishop_attacks(square, color_occupancies[none]) & piece_occupancies[B]) {
+			return true;
+		}
+		if (get_rook_attacks(square, color_occupancies[none]) & piece_occupancies[R]) {
+			return true;
+		}
+		if (get_queen_attacks(square, color_occupancies[none]) & piece_occupancies[Q]) {
+			return true;
+		}
+	}
+	else if (side == black) {
+		if (pawn_attacks[white][square] & piece_occupancies[p]) {
+			return true;
+		}
+		if (king_attacks[square] & piece_occupancies[k]) {
+			return true;
+		}
+		if (knight_attacks[square] & piece_occupancies[n]) {
+			return true;
+		}
+		if (get_bishop_attacks(square, color_occupancies[none]) & piece_occupancies[b]) {
+			return true;
+		}
+		if (get_rook_attacks(square, color_occupancies[none]) & piece_occupancies[r]) {
+			return true;
+		}
+		if (get_queen_attacks(square, color_occupancies[none]) & piece_occupancies[q]) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
+void print_all_attacks(Color side) {
+	const char* GREEN = "\033[92m";
+	const char* RESET = "\033[0m";
+
+	cout << endl;
+	for (int rank{ 0 }; rank < 8; ++rank) {
+		cout << (8 - rank) << "| ";
+
+		for (int file{ 0 }; file < 8; ++file) {
+			int square = rank * 8 + file;
+
+			if (is_square_attacked(square, side))
+				cout << GREEN << "1" << RESET << " ";
+			else
+				cout << "0 ";
+		}
+
+		cout << endl;
+	}
+
+	cout << "   ________________" << endl;
+	cout << "   a b c d e f g h" << endl;
+}
+
+//U64 generate_magic_number_candidate() {
+//	return get_random_u64_number() & get_random_u64_number() & get_random_u64_number();
+//}
+//
 //U64 find_magic_number(int square, int relevant_bits, Piece piece) {
 //	U64 occupancies[4096];
 //	U64 attacks[4096];
@@ -881,10 +951,16 @@ U64 generate_magic_number_candidate() {
 //
 //	return 0ULL;
 //}
-
-//void init_magic_numbers() {
+//
+//void init_bishop_magic_numbers() {
 //	for (int square{ 0 }; square < 64; square++) {
 //		cout << find_magic_number(square, relevant_bishop_bits[square], bishop) << "ULL," << endl;
+//	}
+//}
+//
+//void init_rook_magic_numbers() {
+//	for (int square{ 0 }; square < 64; square++) {
+//		cout << find_magic_number(square, relevant_rook_bits[square], rook) << "ULL," << endl;
 //	}
 //}
 
@@ -894,13 +970,13 @@ int main()
 	init_sliders_attack_tables(rook);
 	init_all_pawn_attacks();
 	init_all_king_attacks();
-	init_all_king_attacks();
+	init_all_knight_attacks();
 
-	parse_fen(starting_pos_fen);
+	parse_fen(tricky_pos_fen);
 
-	//print_board();
+	cout << endl;
 
-	U64 blocker = 0ULL;
+	print_all_attacks(white);
 
 	return 0;
 }
