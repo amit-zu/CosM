@@ -1,6 +1,6 @@
 ﻿# CosM
 
-<img src="images/logo.png" width="300">
+<img src="logo.png" width="300">
 
 ## CosM — Computation Strategy Machine
 
