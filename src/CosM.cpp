@@ -212,6 +212,15 @@ struct MoveList {
 	int count;
 };
 
+struct BoardState {
+	U64 bitboards[12];
+	U64 occupancies[3]; //white, black, none
+	int side, enpassant, castle;
+};
+
+BoardState current{};
+BoardState board_copy{};
+
 constexpr int encode_move(int source, int target, int piece, int promoted,
 	bool capture, bool double_push,
 	bool enpassant, bool castling) {
@@ -354,12 +363,6 @@ int relevant_rook_bits[64] = {
 	12, 11, 11, 11, 11, 11, 11, 12
 };
 
-U64 piece_occupancies[12];
-U64 color_occupancies[3]; //white, black, none
-Color side_to_move = none;
-int enpassant_square = no_square;
-U8 castle;
-
 // Bit operations
 
 bool get_bit(U64 bb, int square) {
@@ -432,7 +435,7 @@ void print_board() {
 			int piece = X;
 
 			for (int color_piece = P; color_piece < X; color_piece++) {
-				U64 piece_occupancy = piece_occupancies[color_piece];
+				U64 piece_occupancy = current.bitboards[color_piece];
 
 				if (get_bit(piece_occupancy, square)) {
 					piece = color_piece;
@@ -453,15 +456,15 @@ void print_board() {
 	cout << "   ________________" << endl;
 	cout << "   a b c d e f g h" << endl << endl;
 
-	cout << std::format("to move: {}, ", ((side_to_move == white) ? "white" : ((side_to_move == black) ? "black" : "none")));
+	cout << std::format("to move: {}, ", ((current.side == white) ? "white" : ((current.side == black) ? "black" : "none")));
 
-	cout << std::format("en passant: {}, ", (enpassant_square != no_square) ? square_to_coordinate(enpassant_square) : "-");
+	cout << std::format("en passant: {}, ", (current.enpassant != no_square) ? square_to_coordinate(current.enpassant) : "-");
 
 	cout << std::format("castle: {}{}{}{}", 
-		(castle & wk) ? "K" : "-", 
-		(castle & wq) ? "Q" : "-", 
-		(castle & bk) ? "k" : "-", 
-		(castle & bq) ? "q" : "-");
+		(current.castle & wk) ? "K" : "-", 
+		(current.castle & wq) ? "Q" : "-",
+		(current.castle & bk) ? "k" : "-",
+		(current.castle & bq) ? "q" : "-");
 
 	cout << endl;
 }
@@ -485,12 +488,12 @@ vector<string> split(const string& s, char delimiter) {
 }
 
 void parse_fen(const string& fen) {
-	std::memset(piece_occupancies, 0ULL, sizeof(piece_occupancies));
-	std::memset(color_occupancies, 0ULL, sizeof(color_occupancies));
+	std::memset(current.bitboards, 0ULL, sizeof(current.bitboards));
+	std::memset(current.occupancies, 0ULL, sizeof(current.occupancies));
 
-	side_to_move = none;
-	enpassant_square = no_square;
-	castle = 0;
+	current.side = none;
+	current.enpassant = no_square;
+	current.castle = 0;
 
 	vector<string> fen_parts = split(fen, ' ');
 
@@ -522,7 +525,7 @@ void parse_fen(const string& fen) {
 			int piece = get_piece_from_char(c);
 
 			if (piece != X) {
-				set_bit(piece_occupancies[piece], square);
+				set_bit(current.bitboards[piece], square);
 				square++;
 			}
 		}
@@ -531,27 +534,27 @@ void parse_fen(const string& fen) {
 	for (char c : castling_string) {
 		switch (c) {
 		case '-': break;
-		case 'K': castle |= wk; break;
-		case 'Q': castle |= wq; break;
-		case 'k': castle |= bk; break;
-		case 'q': castle |= bq; break;
+		case 'K': current.castle |= wk; break;
+		case 'Q': current.castle |= wq; break;
+		case 'k': current.castle |= bk; break;
+		case 'q': current.castle |= bq; break;
 		}
 	}
 
-	side_to_move = (side_to_move_string == "w") ? white : black;
+	current.side = (side_to_move_string == "w") ? white : black;
 
-	enpassant_square = (en_passant_string == "-") ? no_square : coordinate_to_square(en_passant_string);
+	current.enpassant = (en_passant_string == "-") ? no_square : coordinate_to_square(en_passant_string);
 
 	for (int piece = P; piece <= R; piece++) {
-		color_occupancies[white] |= piece_occupancies[piece];
+		current.occupancies[white] |= current.bitboards[piece];
 	}
 
 	for (int piece = p; piece <= r; piece++) {
-		color_occupancies[black] |= piece_occupancies[piece];
+		current.occupancies[black] |= current.bitboards[piece];
 	}
 
-	color_occupancies[none] |= color_occupancies[white];
-	color_occupancies[none] |= color_occupancies[black];
+	current.occupancies[none] |= current.occupancies[white];
+	current.occupancies[none] |= current.occupancies[black];
 }
 
 U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask) {
@@ -898,42 +901,42 @@ U64 get_random_u64_number() {
 
 bool is_square_attacked(int square, Color side) {
 	if (side == white) {
-		if (pawn_attacks[black][square] & piece_occupancies[P]) {
+		if (pawn_attacks[black][square] & current.bitboards[P]) {
 			return true;
 		}
-		if (king_attacks[square] & piece_occupancies[K]) {
+		if (king_attacks[square] & current.bitboards[K]) {
 			return true;
 		}
-		if (knight_attacks[square] & piece_occupancies[N]) {
+		if (knight_attacks[square] & current.bitboards[N]) {
 			return true;
 		}
-		if (get_bishop_attacks(square, color_occupancies[none]) & piece_occupancies[B]) {
+		if (get_bishop_attacks(square, current.occupancies[none]) & current.bitboards[B]) {
 			return true;
 		}
-		if (get_rook_attacks(square, color_occupancies[none]) & piece_occupancies[R]) {
+		if (get_rook_attacks(square, current.occupancies[none]) & current.bitboards[R]) {
 			return true;
 		}
-		if (get_queen_attacks(square, color_occupancies[none]) & piece_occupancies[Q]) {
+		if (get_queen_attacks(square, current.occupancies[none]) & current.bitboards[Q]) {
 			return true;
 		}
 	}
 	else if (side == black) {
-		if (pawn_attacks[white][square] & piece_occupancies[p]) {
+		if (pawn_attacks[white][square] & current.bitboards[p]) {
 			return true;
 		}
-		if (king_attacks[square] & piece_occupancies[k]) {
+		if (king_attacks[square] & current.bitboards[k]) {
 			return true;
 		}
-		if (knight_attacks[square] & piece_occupancies[n]) {
+		if (knight_attacks[square] & current.bitboards[n]) {
 			return true;
 		}
-		if (get_bishop_attacks(square, color_occupancies[none]) & piece_occupancies[b]) {
+		if (get_bishop_attacks(square, current.occupancies[none]) & current.bitboards[b]) {
 			return true;
 		}
-		if (get_rook_attacks(square, color_occupancies[none]) & piece_occupancies[r]) {
+		if (get_rook_attacks(square, current.occupancies[none]) & current.bitboards[r]) {
 			return true;
 		}
-		if (get_queen_attacks(square, color_occupancies[none]) & piece_occupancies[q]) {
+		if (get_queen_attacks(square, current.occupancies[none]) & current.bitboards[q]) {
 			return true;
 		}
 	}
@@ -973,9 +976,9 @@ void generate_moves(MoveList& moves) {
 	U64 bitboard, attacks;
 
 	for (int piece = P; piece <= r; piece++) {
-		bitboard = piece_occupancies[piece];
+		bitboard = current.bitboards[piece];
 
-		if (side_to_move == white) {
+		if (current.side == white) {
 			if (piece == P) {
 
 				while (bitboard) {
@@ -983,7 +986,7 @@ void generate_moves(MoveList& moves) {
 					from_square = get_least_significant_1_bit(bitboard);
 					target_square = from_square - 8;
 
-					if (!(target_square < a8) && !get_bit(color_occupancies[none], target_square)) {
+					if (!(target_square < a8) && !get_bit(current.occupancies[none], target_square)) {
 						if (from_square >= a7 && from_square <= h7) { // promotion
 							add_move(encode_move(from_square, target_square, P, Q, false, false, false, false), moves);
 							add_move(encode_move(from_square, target_square, P, R, false, false, false, false), moves);
@@ -995,13 +998,13 @@ void generate_moves(MoveList& moves) {
 							add_move(encode_move(from_square, target_square, P, X, false, false, false, false), moves);
 
 							if (from_square >= a2 && from_square <= h2 &&
-								!get_bit(color_occupancies[none], target_square - 8)) { // double pawn push
+								!get_bit(current.occupancies[none], target_square - 8)) { // double pawn push
 									add_move(encode_move(from_square, target_square - 8, P, X, false, true, false, false), moves);
 							}
 						}
 					}
 
-					attacks = pawn_attacks[side_to_move][from_square] & color_occupancies[black];
+					attacks = pawn_attacks[current.side][from_square] & current.occupancies[black];
 
 					while (attacks) {
 						target_square = get_least_significant_1_bit(attacks);
@@ -1021,8 +1024,8 @@ void generate_moves(MoveList& moves) {
 
 					// generate en passant captures
 
-					if (enpassant_square != no_square) {
-						U64 enpassant_attacks = pawn_attacks[side_to_move][from_square] & (1ULL << enpassant_square);
+					if (current.enpassant != no_square) {
+						U64 enpassant_attacks = pawn_attacks[current.side][from_square] & (1ULL << current.enpassant);
 
 						if (enpassant_attacks) {
 							int target_enpassant = get_least_significant_1_bit(enpassant_attacks);
@@ -1037,16 +1040,16 @@ void generate_moves(MoveList& moves) {
 
 			if (piece == K) {
 
-				if (castle & wk) {
-					if (!get_bit(color_occupancies[none], f1) && !get_bit(color_occupancies[none], g1)) {
+				if (current.castle & wk) {
+					if (!get_bit(current.occupancies[none], f1) && !get_bit(current.occupancies[none], g1)) {
 						if (!is_square_attacked(e1, black) && !is_square_attacked(f1, black) && !is_square_attacked(g1, black)) {
 							add_move(encode_move(e1, g1, K, X, false, false, false, true), moves);
 						}
 					}
 				}
 
-				if (castle & wq) {
-					if (!get_bit(color_occupancies[none], d1) && !get_bit(color_occupancies[none], c1) && !get_bit(color_occupancies[none], b1)) {
+				if (current.castle & wq) {
+					if (!get_bit(current.occupancies[none], d1) && !get_bit(current.occupancies[none], c1) && !get_bit(current.occupancies[none], b1)) {
 						if (!is_square_attacked(e1, black) && !is_square_attacked(d1, black) && !is_square_attacked(c1, black)) {
 							add_move(encode_move(e1, c1, K, X, false, false, false, true), moves);
 						}
@@ -1055,7 +1058,7 @@ void generate_moves(MoveList& moves) {
 
 			}
 		}
-		else if (side_to_move == black) {
+		else if (current.side == black) {
 			if (piece == p) {
 
 				while (bitboard) {
@@ -1063,7 +1066,7 @@ void generate_moves(MoveList& moves) {
 					from_square = get_least_significant_1_bit(bitboard);
 					target_square = from_square + 8;
 
-					if (!(target_square < h1) && !get_bit(color_occupancies[none], target_square)) {
+					if (!(target_square < h1) && !get_bit(current.occupancies[none], target_square)) {
 						if (from_square >= a2 && from_square <= h2) { // promotion
 							add_move(encode_move(from_square, target_square, p, q, false, false, false, false), moves);
 							add_move(encode_move(from_square, target_square, p, r, false, false, false, false), moves);
@@ -1074,13 +1077,13 @@ void generate_moves(MoveList& moves) {
 							add_move(encode_move(from_square, target_square, p, X, false, false, false, false), moves);
 
 							if (from_square >= a7 && from_square <= h7 &&
-								!get_bit(color_occupancies[none], target_square + 8)) { // double pawn push
+								!get_bit(current.occupancies[none], target_square + 8)) { // double pawn push
 								add_move(encode_move(from_square, target_square + 8, p, X, false, true, false, false), moves);
 							}
 						}
 					}
 
-					attacks = pawn_attacks[side_to_move][from_square] & color_occupancies[white];
+					attacks = pawn_attacks[current.side][from_square] & current.occupancies[white];
 
 					while (attacks) {
 						target_square = get_least_significant_1_bit(attacks);
@@ -1100,8 +1103,8 @@ void generate_moves(MoveList& moves) {
 
 					// generate en passant captures
 
-					if (enpassant_square != no_square) {
-						U64 enpassant_attacks = pawn_attacks[side_to_move][from_square] & (1ULL << enpassant_square);
+					if (current.enpassant != no_square) {
+						U64 enpassant_attacks = pawn_attacks[current.side][from_square] & (1ULL << current.enpassant);
 
 						if (enpassant_attacks) {
 							int target_enpassant = get_least_significant_1_bit(enpassant_attacks);
@@ -1116,16 +1119,16 @@ void generate_moves(MoveList& moves) {
 
 			if (piece == k) {
 
-				if (castle & bk) {
-					if (!get_bit(color_occupancies[none], f8) && !get_bit(color_occupancies[none], g8)) {
+				if (current.castle & bk) {
+					if (!get_bit(current.occupancies[none], f8) && !get_bit(current.occupancies[none], g8)) {
 						if (!is_square_attacked(e8, white) && !is_square_attacked(f8, white) && !is_square_attacked(g8, white)) {
 							add_move(encode_move(e8, g8, k, X, false, false, false, true), moves);
 						}
 					}
 				}
 
-				if (castle & bq) {
-					if (!get_bit(color_occupancies[none], d8) && !get_bit(color_occupancies[none], c8) && !get_bit(color_occupancies[none], b8)) {
+				if (current.castle & bq) {
+					if (!get_bit(current.occupancies[none], d8) && !get_bit(current.occupancies[none], c8) && !get_bit(current.occupancies[none], b8)) {
 						if (!is_square_attacked(e8, white) && !is_square_attacked(d8, white) && !is_square_attacked(c8, white)) {
 							add_move(encode_move(e8, c8, k, X, false, false, false, true), moves);
 						}
@@ -1134,21 +1137,21 @@ void generate_moves(MoveList& moves) {
 			}
 		}
 
-		if ((side_to_move == white) ? piece == N : piece == n) {
+		if ((current.side == white) ? piece == N : piece == n) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = knight_attacks[from_square] & ((side_to_move == white) ? ~color_occupancies[white] : ~color_occupancies[black]);
+				attacks = knight_attacks[from_square] & ((current.side == white) ? ~current.occupancies[white] : ~current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
 
 					bool is_capture = get_bit(
-						(side_to_move == white) ? color_occupancies[black] : color_occupancies[white],
+						(current.side == white) ? current.occupancies[black] : current.occupancies[white],
 						target_square
 					);
 
-					add_move(encode_move(from_square, target_square, (side_to_move == white) ? N : n, X, is_capture, false, false, false), moves);
+					add_move(encode_move(from_square, target_square, (current.side == white) ? N : n, X, is_capture, false, false, false), moves);
 
 					pop_bit(attacks, target_square);
 				}
@@ -1157,21 +1160,21 @@ void generate_moves(MoveList& moves) {
 			}
 		}
 
-		if ((side_to_move == white) ? piece == B : piece == b) {
+		if ((current.side == white) ? piece == B : piece == b) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = get_bishop_attacks(from_square, color_occupancies[none]) & ((side_to_move == white) ? ~color_occupancies[white] : ~color_occupancies[black]);
+				attacks = get_bishop_attacks(from_square, current.occupancies[none]) & ((current.side == white) ? ~current.occupancies[white] : ~current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
 
 					bool is_capture = get_bit(
-						(side_to_move == white) ? color_occupancies[black] : color_occupancies[white],
+						(current.side == white) ? current.occupancies[black] : current.occupancies[white],
 						target_square
 					);
 
-					add_move(encode_move(from_square, target_square, (side_to_move == white) ? B : b, X, is_capture, false, false, false), moves);
+					add_move(encode_move(from_square, target_square, (current.side == white) ? B : b, X, is_capture, false, false, false), moves);
 
 					pop_bit(attacks, target_square);
 				}
@@ -1180,21 +1183,21 @@ void generate_moves(MoveList& moves) {
 			}
 		}
 
-		if ((side_to_move == white) ? piece == R : piece == r) {
+		if ((current.side == white) ? piece == R : piece == r) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = get_rook_attacks(from_square, color_occupancies[none]) & ((side_to_move == white) ? ~color_occupancies[white] : ~color_occupancies[black]);
+				attacks = get_rook_attacks(from_square, current.occupancies[none]) & ((current.side == white) ? ~current.occupancies[white] : ~current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
 
 					bool is_capture = get_bit(
-						(side_to_move == white) ? color_occupancies[black] : color_occupancies[white],
+						(current.side == white) ? current.occupancies[black] : current.occupancies[white],
 						target_square
 					);
 
-					add_move(encode_move(from_square, target_square, (side_to_move == white) ? R : r, X, is_capture, false, false, false), moves);
+					add_move(encode_move(from_square, target_square, (current.side == white) ? R : r, X, is_capture, false, false, false), moves);
 
 					pop_bit(attacks, target_square);
 				}
@@ -1203,21 +1206,21 @@ void generate_moves(MoveList& moves) {
 			}
 		}
 
-		if ((side_to_move == white) ? piece == Q : piece == q) {
+		if ((current.side == white) ? piece == Q : piece == q) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = get_queen_attacks(from_square, color_occupancies[none]) & ((side_to_move == white) ? ~color_occupancies[white] : ~color_occupancies[black]);
+				attacks = get_queen_attacks(from_square, current.occupancies[none]) & ((current.side == white) ? ~current.occupancies[white] : ~current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
 
 					bool is_capture = get_bit(
-						(side_to_move == white) ? color_occupancies[black] : color_occupancies[white],
+						(current.side == white) ? current.occupancies[black] : current.occupancies[white],
 						target_square
 					);
 
-					add_move(encode_move(from_square, target_square, (side_to_move == white) ? Q : q, X, is_capture, false, false, false), moves);
+					add_move(encode_move(from_square, target_square, (current.side == white) ? Q : q, X, is_capture, false, false, false), moves);
 
 					pop_bit(attacks, target_square);
 				}
@@ -1226,21 +1229,21 @@ void generate_moves(MoveList& moves) {
 			}
 		}
 
-		if ((side_to_move == white) ? piece == K : piece == k) {
+		if ((current.side == white) ? piece == K : piece == k) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = king_attacks[from_square] & ((side_to_move == white) ? ~color_occupancies[white] : ~color_occupancies[black]);
+				attacks = king_attacks[from_square] & ((current.side == white) ? ~current.occupancies[white] : ~current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
 
 					bool is_capture = get_bit(
-						(side_to_move == white) ? color_occupancies[black] : color_occupancies[white],
+						(current.side == white) ? current.occupancies[black] : current.occupancies[white],
 						target_square
 					);
 
-					add_move(encode_move(from_square, target_square, (side_to_move == white) ? K : k, X, is_capture, false, false, false), moves);
+					add_move(encode_move(from_square, target_square, (current.side == white) ? K : k, X, is_capture, false, false, false), moves);
 
 					pop_bit(attacks, target_square);
 				}
@@ -1324,6 +1327,14 @@ void generate_moves(MoveList& moves) {
 //	}
 //}
 
+void copy_board() {
+	std::memcpy(&board_copy, &current, sizeof(board_copy));
+}
+
+void take_back() {
+	std::memcpy(&current, &board_copy, sizeof(current));
+}
+
 int main() {
 	init_sliders_attack_tables(bishop);
 	init_sliders_attack_tables(rook);
@@ -1334,14 +1345,6 @@ int main() {
 	parse_fen(starting_pos_fen);
 
 	print_board();
-
-	cout << endl;
-
-	MoveList list{};
-
-	generate_moves(list);
-	
-	print_move_list(list);
 
 	return 0;
 }

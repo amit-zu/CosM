@@ -1,8 +1,6 @@
-﻿# CosM
+﻿<img src="logo.png" width="300">
 
-<img src="logo.png" width="300">
-
-## CosM — Computation Strategy Machine
+## CosM — Computational Strategy Machine
 
 CosM is a custom chess engine designed to play **Cosmic Chess** — a collection of dynamic, rule-altering chess variants aimed at making the game more engaging and unpredictable.
 
