@@ -10,10 +10,13 @@
 #include <iterator>
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using U64 = unsigned long long;
 using U8 = uint8_t;
+
+static const auto program_start = std::chrono::steady_clock::now();
 
 // fen string
 string empty_board_fen = "8/8/8/8/8/8/8/8 w - - 0 1";
@@ -172,7 +175,7 @@ const int castling_rights[64] = {
 };
 
 enum Color {
-	white, black, none
+	white, black, both
 };
 
 enum Piece {
@@ -325,7 +328,6 @@ void print_move(int move) {
 	cout << square_to_coordinate(get_move_source(move));
 	cout << square_to_coordinate(get_move_target(move));
 	cout << piece_chars[get_move_promoted_piece(move)] << endl;
-
 }
 
 void print_move_list(MoveList& moves) {
@@ -508,7 +510,7 @@ void parse_fen(const string& fen) {
 	std::memset(board_current.bitboards, 0ULL, sizeof(board_current.bitboards));
 	std::memset(board_current.occupancies, 0ULL, sizeof(board_current.occupancies));
 
-	board_current.side = none;
+	board_current.side = both;
 	board_current.enpassant = no_square;
 	board_current.castle = 0;
 
@@ -518,8 +520,8 @@ void parse_fen(const string& fen) {
 	string side_to_move_string = fen_parts[1];
 	string castling_string = fen_parts[2];
 	string en_passant_string = fen_parts[3];
-	string half_move_string = fen_parts[4];
-	string full_move_string = fen_parts[5];
+	//string half_move_string = fen_parts[4];
+	//string full_move_string = fen_parts[5];
 
 	int square = 0;
 
@@ -570,8 +572,7 @@ void parse_fen(const string& fen) {
 		board_current.occupancies[black] |= board_current.bitboards[piece];
 	}
 
-	board_current.occupancies[none] |= board_current.occupancies[white];
-	board_current.occupancies[none] |= board_current.occupancies[black];
+	board_current.occupancies[both] = board_current.occupancies[white] | board_current.occupancies[black];
 }
 
 U64 set_occupancy(int index, int bits_in_mask, U64 attack_mask) {
@@ -927,13 +928,13 @@ bool is_square_attacked(int square, Color side) {
 		if (knight_attacks[square] & board_current.bitboards[N]) {
 			return true;
 		}
-		if (get_bishop_attacks(square, board_current.occupancies[none]) & board_current.bitboards[B]) {
+		if (get_bishop_attacks(square, board_current.occupancies[both]) & board_current.bitboards[B]) {
 			return true;
 		}
-		if (get_rook_attacks(square, board_current.occupancies[none]) & board_current.bitboards[R]) {
+		if (get_rook_attacks(square, board_current.occupancies[both]) & board_current.bitboards[R]) {
 			return true;
 		}
-		if (get_queen_attacks(square, board_current.occupancies[none]) & board_current.bitboards[Q]) {
+		if (get_queen_attacks(square, board_current.occupancies[both]) & board_current.bitboards[Q]) {
 			return true;
 		}
 	}
@@ -947,13 +948,13 @@ bool is_square_attacked(int square, Color side) {
 		if (knight_attacks[square] & board_current.bitboards[n]) {
 			return true;
 		}
-		if (get_bishop_attacks(square, board_current.occupancies[none]) & board_current.bitboards[b]) {
+		if (get_bishop_attacks(square, board_current.occupancies[both]) & board_current.bitboards[b]) {
 			return true;
 		}
-		if (get_rook_attacks(square, board_current.occupancies[none]) & board_current.bitboards[r]) {
+		if (get_rook_attacks(square, board_current.occupancies[both]) & board_current.bitboards[r]) {
 			return true;
 		}
-		if (get_queen_attacks(square, board_current.occupancies[none]) & board_current.bitboards[q]) {
+		if (get_queen_attacks(square, board_current.occupancies[both]) & board_current.bitboards[q]) {
 			return true;
 		}
 	}
@@ -1003,7 +1004,7 @@ void generate_moves(MoveList& moves) {
 					from_square = get_least_significant_1_bit(bitboard);
 					target_square = from_square - 8;
 
-					if (!(target_square < a8) && !get_bit(board_current.occupancies[none], target_square)) {
+					if (!(target_square < a8) && !get_bit(board_current.occupancies[both], target_square)) {
 						if (from_square >= a7 && from_square <= h7) { // promotion
 							add_move(encode_move(from_square, target_square, P, Q, false, false, false, false), moves);
 							add_move(encode_move(from_square, target_square, P, R, false, false, false, false), moves);
@@ -1015,7 +1016,7 @@ void generate_moves(MoveList& moves) {
 							add_move(encode_move(from_square, target_square, P, X, false, false, false, false), moves);
 
 							if (from_square >= a2 && from_square <= h2 &&
-								!get_bit(board_current.occupancies[none], target_square - 8)) { // double pawn push
+								!get_bit(board_current.occupancies[both], target_square - 8)) { // double pawn push
 									add_move(encode_move(from_square, target_square - 8, P, X, false, true, false, false), moves);
 							}
 						}
@@ -1047,7 +1048,7 @@ void generate_moves(MoveList& moves) {
 						if (enpassant_attacks) {
 							int target_enpassant = get_least_significant_1_bit(enpassant_attacks);
 
-							add_move(encode_move(from_square, target_enpassant, P, X, false, false, true, false), moves);
+							add_move(encode_move(from_square, target_enpassant, P, X, true, false, true, false), moves);
 						}
 					}
 
@@ -1058,7 +1059,7 @@ void generate_moves(MoveList& moves) {
 			if (piece == K) {
 
 				if (board_current.castle & wk) {
-					if (!get_bit(board_current.occupancies[none], f1) && !get_bit(board_current.occupancies[none], g1)) {
+					if (!get_bit(board_current.occupancies[both], f1) && !get_bit(board_current.occupancies[both], g1)) {
 						if (!is_square_attacked(e1, black) && !is_square_attacked(f1, black) && !is_square_attacked(g1, black)) {
 							add_move(encode_move(e1, g1, K, X, false, false, false, true), moves);
 						}
@@ -1066,7 +1067,7 @@ void generate_moves(MoveList& moves) {
 				}
 
 				if (board_current.castle & wq) {
-					if (!get_bit(board_current.occupancies[none], d1) && !get_bit(board_current.occupancies[none], c1) && !get_bit(board_current.occupancies[none], b1)) {
+					if (!get_bit(board_current.occupancies[both], d1) && !get_bit(board_current.occupancies[both], c1) && !get_bit(board_current.occupancies[both], b1)) {
 						if (!is_square_attacked(e1, black) && !is_square_attacked(d1, black) && !is_square_attacked(c1, black)) {
 							add_move(encode_move(e1, c1, K, X, false, false, false, true), moves);
 						}
@@ -1083,7 +1084,7 @@ void generate_moves(MoveList& moves) {
 					from_square = get_least_significant_1_bit(bitboard);
 					target_square = from_square + 8;
 
-					if (!(target_square < h1) && !get_bit(board_current.occupancies[none], target_square)) {
+					if (!(target_square > h1) && !get_bit(board_current.occupancies[both], target_square)) {
 						if (from_square >= a2 && from_square <= h2) { // promotion
 							add_move(encode_move(from_square, target_square, p, q, false, false, false, false), moves);
 							add_move(encode_move(from_square, target_square, p, r, false, false, false, false), moves);
@@ -1094,7 +1095,7 @@ void generate_moves(MoveList& moves) {
 							add_move(encode_move(from_square, target_square, p, X, false, false, false, false), moves);
 
 							if (from_square >= a7 && from_square <= h7 &&
-								!get_bit(board_current.occupancies[none], target_square + 8)) { // double pawn push
+								!get_bit(board_current.occupancies[both], target_square + 8)) { // double pawn push
 								add_move(encode_move(from_square, target_square + 8, p, X, false, true, false, false), moves);
 							}
 						}
@@ -1126,7 +1127,7 @@ void generate_moves(MoveList& moves) {
 						if (enpassant_attacks) {
 							int target_enpassant = get_least_significant_1_bit(enpassant_attacks);
 
-							add_move(encode_move(from_square, target_enpassant, p, X, false, false, true, false), moves);
+							add_move(encode_move(from_square, target_enpassant, p, X, true, false, true, false), moves);
 						}
 					}
 
@@ -1137,7 +1138,7 @@ void generate_moves(MoveList& moves) {
 			if (piece == k) {
 
 				if (board_current.castle & bk) {
-					if (!get_bit(board_current.occupancies[none], f8) && !get_bit(board_current.occupancies[none], g8)) {
+					if (!get_bit(board_current.occupancies[both], f8) && !get_bit(board_current.occupancies[both], g8)) {
 						if (!is_square_attacked(e8, white) && !is_square_attacked(f8, white) && !is_square_attacked(g8, white)) {
 							add_move(encode_move(e8, g8, k, X, false, false, false, true), moves);
 						}
@@ -1145,7 +1146,7 @@ void generate_moves(MoveList& moves) {
 				}
 
 				if (board_current.castle & bq) {
-					if (!get_bit(board_current.occupancies[none], d8) && !get_bit(board_current.occupancies[none], c8) && !get_bit(board_current.occupancies[none], b8)) {
+					if (!get_bit(board_current.occupancies[both], d8) && !get_bit(board_current.occupancies[both], c8) && !get_bit(board_current.occupancies[both], b8)) {
 						if (!is_square_attacked(e8, white) && !is_square_attacked(d8, white) && !is_square_attacked(c8, white)) {
 							add_move(encode_move(e8, c8, k, X, false, false, false, true), moves);
 						}
@@ -1181,7 +1182,7 @@ void generate_moves(MoveList& moves) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = get_bishop_attacks(from_square, board_current.occupancies[none]) & ((board_current.side == white) ? ~board_current.occupancies[white] : ~board_current.occupancies[black]);
+				attacks = get_bishop_attacks(from_square, board_current.occupancies[both]) & ((board_current.side == white) ? ~board_current.occupancies[white] : ~board_current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
@@ -1204,7 +1205,7 @@ void generate_moves(MoveList& moves) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = get_rook_attacks(from_square, board_current.occupancies[none]) & ((board_current.side == white) ? ~board_current.occupancies[white] : ~board_current.occupancies[black]);
+				attacks = get_rook_attacks(from_square, board_current.occupancies[both]) & ((board_current.side == white) ? ~board_current.occupancies[white] : ~board_current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
@@ -1227,7 +1228,7 @@ void generate_moves(MoveList& moves) {
 			while (bitboard) {
 				from_square = get_least_significant_1_bit(bitboard);
 
-				attacks = get_queen_attacks(from_square, board_current.occupancies[none]) & ((board_current.side == white) ? ~board_current.occupancies[white] : ~board_current.occupancies[black]);
+				attacks = get_queen_attacks(from_square, board_current.occupancies[both]) & ((board_current.side == white) ? ~board_current.occupancies[white] : ~board_current.occupancies[black]);
 
 				while (attacks) {
 					target_square = get_least_significant_1_bit(attacks);
@@ -1374,12 +1375,12 @@ bool make_move(int move, MoveType type) {
 			int start_piece = 0, end_piece = 0;
 
 			if (board_current.side == white) {
-				start_piece = P;
-				end_piece = R;
-			}
-			else if (board_current.side == black) {
 				start_piece = p;
 				end_piece = r;
+			}
+			else if (board_current.side == black) {
+				start_piece = P;
+				end_piece = R;
 			}
 
 			for (int piece_index = start_piece; piece_index <= end_piece; piece_index++) {
@@ -1452,8 +1453,7 @@ bool make_move(int move, MoveType type) {
 			board_current.occupancies[black] |= board_current.bitboards[piece];
 		}
 
-		board_current.occupancies[none] |= board_current.occupancies[white];
-		board_current.occupancies[none] |= board_current.occupancies[black];
+		board_current.occupancies[both] = board_current.occupancies[white] | board_current.occupancies[black];
 
 		// change turn
 		board_current.side = (board_current.side == white) ? black : white;
@@ -1479,6 +1479,74 @@ bool make_move(int move, MoveType type) {
 	}
 }
 
+long long get_time_ms()
+{
+	using namespace std::chrono;
+	return duration_cast<milliseconds>(steady_clock::now() - program_start).count();
+}
+
+// leaf nodes (number of positions reached for a given depth)
+long nodes;
+
+void perft_driver(int depth) {
+	if (depth == 0) {
+		nodes++;
+		return;
+	}
+
+	MoveList move_list{};
+	generate_moves(move_list);
+
+	for (int i = 0; i < move_list.count; i++) {
+		BoardState backup = board_current;
+
+		if (!make_move(move_list.moves[i], general_move)) {
+			board_current = backup;
+			continue;
+		}
+
+		perft_driver(depth - 1);
+
+		board_current = backup;
+	}
+}
+
+void perft_test(int depth) {
+	cout << "---performance test--- " << endl;
+
+	MoveList move_list{};
+	generate_moves(move_list);
+
+	long long start_time = get_time_ms();
+
+	for (int i = 0; i < move_list.count; i++) {
+		BoardState backup = board_current;
+
+		if (!make_move(move_list.moves[i], general_move)) {
+			board_current = backup;
+			continue;
+		}
+
+		long cumulative_nodes = nodes;
+
+		perft_driver(depth - 1);
+
+		long old_nodes = nodes - cumulative_nodes;
+
+		board_current = backup;
+
+		cout << piece_chars[get_move_piece(move_list.moves[i])];
+		cout << square_to_coordinate(get_move_source(move_list.moves[i]));
+		cout << square_to_coordinate(get_move_target(move_list.moves[i]));
+		cout << piece_chars[get_move_promoted_piece(move_list.moves[i])];
+		cout << " nodes: " << old_nodes << endl;
+	}
+
+	cout << "depth: " << depth << endl;
+	cout << "nodes: " << nodes << endl;
+	cout << "time:  " << (get_time_ms() - start_time) <<  "ms" << endl;
+}
+
 int main() {
 	init_sliders_attack_tables(bishop);
 	init_sliders_attack_tables(rook);
@@ -1486,23 +1554,9 @@ int main() {
 	init_all_king_attacks();
 	init_all_knight_attacks();
 
-	parse_fen("8/8/8/4P3/8/5k2/4R3/4K3 b - - 0 1");
+	parse_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
 
-	print_board();
-
-	MoveList move_list{};
-
-	cout << endl;
-
-	generate_moves(move_list);
-
-	print_move_list(move_list);
-
-	cout << endl;
-
-	make_move(move_list.moves[0], general_move);
-
-	print_board();
+	perft_test(5);
 
 	return 0;
 }
