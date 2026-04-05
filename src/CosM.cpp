@@ -11,6 +11,8 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
+#include <cctype>
+#include <cstdlib>
 
 using namespace std;
 using U64 = unsigned long long;
@@ -323,11 +325,33 @@ int coordinate_to_square(string& coord) {
 	return rank_index * 8 + file_index;
 }
 
+string get_move_string(int move) {
+	if (move == 0) {
+		return "illegal move";
+	}
+
+	std::string result;
+
+	// piece (if you actually want it)
+	result += piece_chars[get_move_piece(move)];
+
+	// source square
+	result += square_to_coordinate(get_move_source(move));
+
+	// target square
+	result += square_to_coordinate(get_move_target(move));
+
+	// promotion (only if exists)
+	int promoted = get_move_promoted_piece(move);
+	if (promoted != X) {
+		result += piece_chars[promoted];
+	}
+
+	return result;
+}
+
 void print_move(int move) {
-	cout << piece_chars[get_move_piece(move)];
-	cout << square_to_coordinate(get_move_source(move));
-	cout << square_to_coordinate(get_move_target(move));
-	cout << piece_chars[get_move_promoted_piece(move)] << endl;
+	cout << get_move_string(move) << endl;
 }
 
 void print_move_list(MoveList& moves) {
@@ -1547,6 +1571,166 @@ void perft_test(int depth) {
 	cout << "time:  " << (get_time_ms() - start_time) <<  "ms" << endl;
 }
 
+int parse_move(const char* move_string) {
+	if (!move_string)
+		return 0;
+
+	// determine token length only until space or newline
+	size_t len = 0;
+	while (move_string[len] && move_string[len] != ' ' && move_string[len] != '\n')
+		len++;
+
+	if (len < 4 || len > 5)
+		return 0;
+
+	MoveList moves{};
+	generate_moves(moves);
+
+	int source_square = (move_string[0] - 'a') + (8 - (move_string[1] - '0')) * 8;
+	int target_square = (move_string[2] - 'a') + (8 - (move_string[3] - '0')) * 8;
+
+	for (int move_count = 0; move_count < moves.count; move_count++) {
+		int move = moves.moves[move_count];
+
+		if (source_square == get_move_source(move) &&
+			target_square == get_move_target(move))
+		{
+			int promoted_piece = get_move_promoted_piece(move);
+
+			if (promoted_piece != X) {
+				if (len != 5)
+					return 0;
+
+				char promoted_piece_char = move_string[4];
+
+				if (std::tolower(static_cast<unsigned char>(promoted_piece_char)) ==
+					std::tolower(static_cast<unsigned char>(piece_chars[promoted_piece])))
+				{
+					return move;
+				}
+
+				continue;
+			}
+
+			if (len == 5)
+				return 0;
+
+			return move;
+		}
+	}
+
+	return 0;
+}
+
+void parse_position(const char* command) {
+	command += 9;
+
+	const char* current_char = command;
+
+	if (strncmp(command, "startpos", 8) == 0) {
+		parse_fen(starting_pos_fen);
+	}
+	else {
+		current_char = strstr(command, "fen");
+
+		if (current_char == NULL) {
+			parse_fen(starting_pos_fen);
+		}
+		else {
+			current_char += 4;
+			parse_fen(current_char);
+		}
+	}
+
+	current_char = strstr(command, "moves");
+
+	if (current_char != NULL) {
+		current_char += 6;
+
+		while (*current_char) {
+			while (*current_char == ' ')
+				current_char++;
+
+			if (!*current_char)
+				break;
+
+			int move = parse_move(current_char);
+
+			if (move == 0) {
+				break;
+			}
+
+			make_move(move, general_move);
+
+			while (*current_char && *current_char != ' ')
+				current_char++;
+		}
+	}
+}
+
+void parse_go(const char* command) {
+	int depth = -1;
+
+	char *current_depth = NULL;
+
+	// handle fixed depth search
+	if (strstr(command, "moves")) {
+		depth = atoi(current_depth + 6);
+	}
+	else {
+		depth = 6;
+	}
+
+	// do more stuff
+}
+
+void uci_loop() {
+	setbuf(stdin, NULL);
+	setbuf(stdout, NULL);
+
+	char input[2000];
+
+	cout << "CosM 0.1.0 by Amit Zuarets" << endl;
+
+	while (true) {
+		memset(input, 0, sizeof(input));
+		fflush(stdout);
+
+		if (!fgets(input, 2000, stdin)) {
+			continue;
+		}
+		else if (input[0] == '\n') {
+			continue;
+		}
+		else if (strncmp(input, "isready", 7) == 0) {
+			cout << "readyok" << endl;
+			continue;
+		}
+		else if (strncmp(input, "position", 8) == 0) {
+			parse_position(input);
+		}
+		else if (strncmp(input, "ucinewgame", 10) == 0) {
+			parse_position("position startpos");
+		}
+		else if (strncmp(input, "go", 2) == 0) {
+			parse_go(input);
+		}
+		else if (strncmp(input, "quit", 4) == 0) {
+			break;
+		}
+		else if (strncmp(input, "uci", 3) == 0) {
+			cout << "id name CosM 0.1.0" << endl;
+			cout << "id author Amit Zuarets" << endl;
+			cout << "uciok" << endl;
+		}
+		else if (strncmp(input, "d", 1) == 0) {
+			cout << endl;
+			print_board();
+			cout << endl;
+		}
+	}
+}
+
 int main() {
 	init_sliders_attack_tables(bishop);
 	init_sliders_attack_tables(rook);
@@ -1554,9 +1738,7 @@ int main() {
 	init_all_king_attacks();
 	init_all_knight_attacks();
 
-	parse_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1");
-
-	perft_test(5);
+	uci_loop();
 
 	return 0;
 }
