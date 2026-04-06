@@ -327,13 +327,10 @@ int coordinate_to_square(string& coord) {
 
 string get_move_string(int move) {
 	if (move == 0) {
-		return "illegal move";
+		return "0000"; // standard UCI null/illegal move
 	}
 
-	std::string result;
-
-	// piece (if you actually want it)
-	result += piece_chars[get_move_piece(move)];
+	string result;
 
 	// source square
 	result += square_to_coordinate(get_move_source(move));
@@ -341,10 +338,10 @@ string get_move_string(int move) {
 	// target square
 	result += square_to_coordinate(get_move_target(move));
 
-	// promotion (only if exists)
 	int promoted = get_move_promoted_piece(move);
 	if (promoted != X) {
-		result += piece_chars[promoted];
+		char promo_char = std::tolower(piece_chars[promoted]);
+		result += promo_char;
 	}
 
 	return result;
@@ -1718,6 +1715,10 @@ int nega_max(int alpha, int beta, int depth) {
 
 	nodes++;
 
+	bool is_in_check = is_square_attacked((board_current.side == white) ? 
+	get_least_significant_1_bit(board_current.bitboards[K]) : get_least_significant_1_bit(board_current.bitboards[k])
+		,(board_current.side == white ? black : white));
+
 	int legal_moves = 0;
 
 	MoveList move_list;
@@ -1756,9 +1757,11 @@ int nega_max(int alpha, int beta, int depth) {
 
 	// No legal moves - checkmate or stalemate
 	if (legal_moves == 0) {
-		// TODO: Distinguish between checkmate and stalemate
-		// For now, treat as checkmate
-		return -49000 + ply;  // prefer longer mates
+		if (is_in_check) {
+			return -49000 + ply;
+		}
+
+		return 0;
 	}
 
 	return alpha;
@@ -1767,7 +1770,9 @@ int nega_max(int alpha, int beta, int depth) {
 void search_position(int depth) {
 	int score = nega_max(-50000, 50000, depth);
 
-	print_move(best_move);
+	if (best_move) {
+		cout << "bestmove " << get_move_string(best_move) << endl;
+	}
 }
 
 int parse_move(const char* move_string) {
