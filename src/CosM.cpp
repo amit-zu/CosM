@@ -30,7 +30,7 @@ const U64 not_ab_file{ 18229723555195321596ULL };
 const U64 not_h_file{ 9187201950435737471ULL };
 const U64 not_gh_file{ 4557430888798830399ULL };
 
-const U64 bishop_magics[64] {
+const U64 bishop_magics[64]{
 1187782080865792ULL,
 292735109795185953ULL,
 1321844025459736576ULL,
@@ -434,7 +434,7 @@ int count_bits(U64 bb) {
 
 int get_least_significant_1_bit(U64 bb) {
 	if (bb) {
-		return count_bits((bb & -bb) -1);
+		return count_bits((bb & -bb) - 1);
 	}
 	else {
 		return -1;
@@ -503,8 +503,8 @@ void print_board() {
 
 	cout << std::format("en passant: {}, ", (board_current.enpassant != no_square) ? square_to_coordinate(board_current.enpassant) : "-");
 
-	cout << std::format("castle: {}{}{}{}", 
-		(board_current.castle & wk) ? "K" : "-", 
+	cout << std::format("castle: {}{}{}{}",
+		(board_current.castle & wk) ? "K" : "-",
 		(board_current.castle & wq) ? "Q" : "-",
 		(board_current.castle & bk) ? "k" : "-",
 		(board_current.castle & bq) ? "q" : "-");
@@ -555,7 +555,7 @@ void parse_fen(const string& fen) {
 
 		if (c == ' ') {
 			break;
-		} 
+		}
 
 		if (c == '/') {
 			continue;
@@ -640,7 +640,7 @@ U64 generate_pawn_attacks(int square, Color color) {
 			attacks_bb |= (pawn_bb >> 9); // left attack
 		}
 	}
-	else if (color == black){
+	else if (color == black) {
 		if (pawn_bb & not_a_file) {
 			attacks_bb |= (pawn_bb << 7); // left attack
 		}
@@ -699,7 +699,7 @@ U64 generate_king_attacks(int square) {
 
 	attacks_bb |= (king_bb << 8); // one down
 	attacks_bb |= (king_bb >> 8); // one up
-	
+
 	return attacks_bb;
 }
 
@@ -870,8 +870,8 @@ U64 get_queen_attacks(int square, U64 occupancy) {
 
 void init_all_pawn_attacks() {
 	for (int square{ 0 }; square < 64; square++) {
-			pawn_attacks[white][square] = generate_pawn_attacks(square, white);
-			pawn_attacks[black][square] = generate_pawn_attacks(square, black);
+		pawn_attacks[white][square] = generate_pawn_attacks(square, white);
+		pawn_attacks[black][square] = generate_pawn_attacks(square, black);
 	}
 }
 
@@ -1041,7 +1041,7 @@ void generate_moves(MoveList& moves) {
 
 							if (from_square >= a2 && from_square <= h2 &&
 								!get_bit(board_current.occupancies[both], target_square - 8)) { // double pawn push
-									add_move(encode_move(from_square, target_square - 8, P, X, false, true, false, false), moves);
+								add_move(encode_move(from_square, target_square - 8, P, X, false, true, false, false), moves);
 							}
 						}
 					}
@@ -1155,7 +1155,7 @@ void generate_moves(MoveList& moves) {
 						}
 					}
 
-					pop_bit(bitboard, from_square); 
+					pop_bit(bitboard, from_square);
 				}
 			}
 
@@ -1369,10 +1369,13 @@ void generate_moves(MoveList& moves) {
 //	}
 //}
 
+// WARNING: NOT safe for use in recursive algorithms!
+// Use local BoardState backup instead.
 void copy_board() {
 	std::memcpy(&board_copy, &board_current, sizeof(board_copy));
 }
-
+// WARNING: NOT safe for use in recursive algorithms!
+// Use local BoardState backup instead.
 void take_back() {
 	std::memcpy(&board_current, &board_copy, sizeof(board_current));
 }
@@ -1424,8 +1427,8 @@ bool make_move(int move, MoveType type) {
 
 		// handle en passant
 		if (move_enpassant_flag) {
-			(board_current.side == white) ? 
-				pop_bit(board_current.bitboards[p], target_square + 8) : 
+			(board_current.side == white) ?
+				pop_bit(board_current.bitboards[p], target_square + 8) :
 				pop_bit(board_current.bitboards[P], target_square - 8);
 		}
 
@@ -1439,26 +1442,26 @@ bool make_move(int move, MoveType type) {
 		// handle castling
 		if (move_castle_flag) {
 			switch (target_square) {
-				case g1: { // white kingside'
-					pop_bit(board_current.bitboards[R], h1);
-					set_bit(board_current.bitboards[R], f1);
-					break;
-					}
-				case c1: { // white queenside
-					pop_bit(board_current.bitboards[R], a1);
-					set_bit(board_current.bitboards[R], d1);
-					break;
-				}
-				case g8: { // black kingside
-					pop_bit(board_current.bitboards[r], h8);
-					set_bit(board_current.bitboards[r], f8);
-					break;
-				}
-				case c8: { // black queenside
-					pop_bit(board_current.bitboards[r], a8);
-					set_bit(board_current.bitboards[r], d8);
-					break;
-				}
+			case g1: { // white kingside'
+				pop_bit(board_current.bitboards[R], h1);
+				set_bit(board_current.bitboards[R], f1);
+				break;
+			}
+			case c1: { // white queenside
+				pop_bit(board_current.bitboards[R], a1);
+				set_bit(board_current.bitboards[R], d1);
+				break;
+			}
+			case g8: { // black kingside
+				pop_bit(board_current.bitboards[r], h8);
+				set_bit(board_current.bitboards[r], f8);
+				break;
+			}
+			case c8: { // black queenside
+				pop_bit(board_current.bitboards[r], a8);
+				set_bit(board_current.bitboards[r], d8);
+				break;
+			}
 			}
 		}
 
@@ -1568,7 +1571,203 @@ void perft_test(int depth) {
 
 	cout << "depth: " << depth << endl;
 	cout << "nodes: " << nodes << endl;
-	cout << "time:  " << (get_time_ms() - start_time) <<  "ms" << endl;
+	cout << "time:  " << (get_time_ms() - start_time) << "ms" << endl;
+}
+
+int material_score[13] = {
+	0, // no piece
+	100, // white pawn
+	10000, // white king
+	1000, // white queen
+	300, // white knight
+	350, // white bishop
+	500, // white rook
+	-100, // black pawn
+	-10000, // black king
+	-1000, // black queen
+	-300, // black knight
+	-350, // black bishop
+	-500, // black rook
+};
+
+// pawn positional score
+const int pawn_score[64] =
+{
+	90,  90,  90,  90,  90,  90,  90,  90,
+	30,  30,  30,  40,  40,  30,  30,  30,
+	20,  20,  20,  30,  30,  30,  20,  20,
+	10,  10,  10,  20,  20,  10,  10,  10,
+	 5,   5,  10,  20,  20,   5,   5,   5,
+	 0,   0,   0,   5,   5,   0,   0,   0,
+	 0,   0,   0, -10, -10,   0,   0,   0,
+	 0,   0,   0,   0,   0,   0,   0,   0
+};
+
+// knight positional score
+const int knight_score[64] =
+{
+	-5,   0,   0,   0,   0,   0,   0,  -5,
+	-5,   0,   0,  10,  10,   0,   0,  -5,
+	-5,   5,  20,  20,  20,  20,   5,  -5,
+	-5,  10,  20,  30,  30,  20,  10,  -5,
+	-5,  10,  20,  30,  30,  20,  10,  -5,
+	-5,   5,  20,  10,  10,  20,   5,  -5,
+	-5,   0,   0,   0,   0,   0,   0,  -5,
+	-5, -10,   0,   0,   0,   0, -10,  -5
+};
+
+// bishop positional score
+const int bishop_score[64] =
+{
+	 0,   0,   0,   0,   0,   0,   0,   0,
+	 0,   0,   0,   0,   0,   0,   0,   0,
+	 0,   0,   0,  10,  10,   0,   0,   0,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,  10,   0,   0,   0,   0,  10,   0,
+	 0,  30,   0,   0,   0,   0,  30,   0,
+	 0,   0, -10,   0,   0, -10,   0,   0
+
+};
+
+// rook positional score
+const int rook_score[64] =
+{
+	50,  50,  50,  50,  50,  50,  50,  50,
+	50,  50,  50,  50,  50,  50,  50,  50,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,   0,  10,  20,  20,  10,   0,   0,
+	 0,   0,   0,  20,  20,   0,   0,   0
+
+};
+
+// king positional score
+const int king_score[64] =
+{
+	 0,   0,   0,   0,   0,   0,   0,   0,
+	 0,   0,   5,   5,   5,   5,   0,   0,
+	 0,   5,   5,  10,  10,   5,   5,   0,
+	 0,   5,  10,  20,  20,  10,   5,   0,
+	 0,   5,  10,  20,  20,  10,   5,   0,
+	 0,   0,   5,  10,  10,   5,   0,   0,
+	 0,   5,   5,  -5,  -5,   0,   5,   0,
+	 0,   0,   5,   0, -15,   0,  10,   0
+};
+
+// mirror positional score tables for opposite side
+const int mirror_score[128] =
+{
+	a1, b1, c1, d1, e1, f1, g1, h1,
+	a2, b2, c2, d2, e2, f2, g2, h2,
+	a3, b3, c3, d3, e3, f3, g3, h3,
+	a4, b4, c4, d4, e4, f4, g4, h4,
+	a5, b5, c5, d5, e5, f5, g5, h5,
+	a6, b6, c6, d6, e6, f6, g6, h6,
+	a7, b7, c7, d7, e7, f7, g7, h7,
+	a8, b8, c8, d8, e8, f8, g8, h8
+};
+
+int evaluate() {
+	int score = 0;
+
+	U64 bitboard;
+
+	int piece, square;
+
+	for (int bb_piece = P; bb_piece <= r; bb_piece++) {
+		bitboard = board_current.bitboards[bb_piece];
+
+		while (bitboard) {
+			piece = bb_piece;
+			square = get_least_significant_1_bit(bitboard);
+
+			score += material_score[piece];
+
+			switch (piece) {
+			case P: score += pawn_score[square]; break;
+			case K: score += king_score[square]; break;
+			case N: score += knight_score[square]; break;
+			case B: score += bishop_score[square]; break;
+			case R: score += rook_score[square]; break;
+			case p: score -= pawn_score[square]; break;
+			case k: score -= king_score[square]; break;
+			case n: score -= knight_score[square]; break;
+			case b: score -= bishop_score[square]; break;
+			case r: score -= rook_score[square]; break;
+			}
+
+			pop_bit(bitboard, square);
+		}
+	}
+
+	return (board_current.side == white) ? score : -score;
+}
+
+// half move
+int ply = 0;
+
+int best_move;
+
+int nega_max(int alpha, int beta, int depth) {
+	if (depth == 0) {
+		return evaluate();
+	}
+
+	nodes++;
+
+	int legal_moves = 0;
+
+	MoveList move_list;
+	generate_moves(move_list);
+
+	for (int move_count = 0; move_count < move_list.count; move_count++) {
+		BoardState backup = board_current;
+
+		ply++;
+
+		if (make_move(move_list.moves[move_count], general_move) == 0) {
+			ply--;
+			continue;
+		}
+
+		legal_moves++;
+
+		int score = -nega_max(-beta, -alpha, depth - 1);
+
+		board_current = backup;
+
+		ply--;
+
+		if (score >= beta) {
+			return beta;
+		}
+
+		if (score > alpha) {
+			alpha = score;
+
+			if (ply == 0) {
+				best_move = move_list.moves[move_count];
+			}
+		}
+	}
+
+	// No legal moves - checkmate or stalemate
+	if (legal_moves == 0) {
+		// TODO: Distinguish between checkmate and stalemate
+		// For now, treat as checkmate
+		return -49000 + ply;  // prefer longer mates
+	}
+
+	return alpha;
+}
+
+void search_position(int depth) {
+	int score = nega_max(-50000, 50000, depth);
+
+	print_move(best_move);
 }
 
 int parse_move(const char* move_string) {
@@ -1669,19 +1868,15 @@ void parse_position(const char* command) {
 }
 
 void parse_go(const char* command) {
-	int depth = -1;
+	int depth = 6;  // default depth
 
-	char *current_depth = NULL;
+	const char* depth_ptr = strstr(command, "depth");
 
-	// handle fixed depth search
-	if (strstr(command, "moves")) {
-		depth = atoi(current_depth + 6);
-	}
-	else {
-		depth = 6;
+	if (depth_ptr != NULL) {
+		depth = atoi(depth_ptr + 6);  // "depth " is 6 characters
 	}
 
-	// do more stuff
+	search_position(depth);
 }
 
 void uci_loop() {
@@ -1731,139 +1926,6 @@ void uci_loop() {
 	}
 }
 
-int material_score[13] = {
-	0, // no piece
-	100, // white pawn
-	10000, // white king
-	1000, // white queen
-	300, // white knight
-	350, // white bishop
-	500, // white rook
-	-100, // black pawn
-	-10000, // black king
-	-1000, // black queen
-	-300, // black knight
-	-350, // black bishop
-	-500, // black rook
-};
-
-// pawn positional score
-const int pawn_score[64] =
-{
-	90,  90,  90,  90,  90,  90,  90,  90,
-	30,  30,  30,  40,  40,  30,  30,  30,
-	20,  20,  20,  30,  30,  30,  20,  20,
-	10,  10,  10,  20,  20,  10,  10,  10,
-	 5,   5,  10,  20,  20,   5,   5,   5,
-	 0,   0,   0,   5,   5,   0,   0,   0,
-	 0,   0,   0, -10, -10,   0,   0,   0,
-	 0,   0,   0,   0,   0,   0,   0,   0
-};
-
-// knight positional score
-const int knight_score[64] =
-{
-	-5,   0,   0,   0,   0,   0,   0,  -5,
-	-5,   0,   0,  10,  10,   0,   0,  -5,
-	-5,   5,  20,  20,  20,  20,   5,  -5,
-	-5,  10,  20,  30,  30,  20,  10,  -5,
-	-5,  10,  20,  30,  30,  20,  10,  -5,
-	-5,   5,  20,  10,  10,  20,   5,  -5,
-	-5,   0,   0,   0,   0,   0,   0,  -5,
-	-5, -10,   0,   0,   0,   0, -10,  -5
-};
-
-// bishop positional score
-const int bishop_score[64] =
-{
-	 0,   0,   0,   0,   0,   0,   0,   0,
-	 0,   0,   0,   0,   0,   0,   0,   0,
-	 0,   0,   0,  10,  10,   0,   0,   0,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,  10,   0,   0,   0,   0,  10,   0,
-	 0,  30,   0,   0,   0,   0,  30,   0,
-	 0,   0, -10,   0,   0, -10,   0,   0
-
-};
-
-// rook positional score
-const int rook_score[64] =
-{
-	50,  50,  50,  50,  50,  50,  50,  50,
-	50,  50,  50,  50,  50,  50,  50,  50,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,   0,  10,  20,  20,  10,   0,   0,
-	 0,   0,   0,  20,  20,   0,   0,   0
-
-};
-
-// king positional score
-const int king_score[64] =
-{
-	 0,   0,   0,   0,   0,   0,   0,   0,
-	 0,   0,   5,   5,   5,   5,   0,   0,
-	 0,   5,   5,  10,  10,   5,   5,   0,
-	 0,   5,  10,  20,  20,  10,   5,   0,
-	 0,   5,  10,  20,  20,  10,   5,   0,
-	 0,   0,   5,  10,  10,   5,   0,   0,
-	 0,   5,   5,  -5,  -5,   0,   5,   0,
-	 0,   0,   5,   0, -15,   0,  10,   0
-};
-
-// mirror positional score tables for opposite side
-const int mirror_score[128] =
-{
-	a1, b1, c1, d1, e1, f1, g1, h1,
-	a2, b2, c2, d2, e2, f2, g2, h2,
-	a3, b3, c3, d3, e3, f3, g3, h3,
-	a4, b4, c4, d4, e4, f4, g4, h4,
-	a5, b5, c5, d5, e5, f5, g5, h5,
-	a6, b6, c6, d6, e6, f6, g6, h6,
-	a7, b7, c7, d7, e7, f7, g7, h7,
-	a8, b8, c8, d8, e8, f8, g8, h8
-};
-
-
-int evaluate() {
-	int score = 0;
-
-	U64 bitboard;
-
-	int piece, square;
-
-	for (int bb_piece = P; bb_piece <= r; bb_piece++) {
-		bitboard = board_current.bitboards[bb_piece];
-
-		while (bitboard) {
-			piece = bb_piece;
-			square = get_least_significant_1_bit(bitboard);
-			
-			score += material_score[piece];
-
-			switch (piece) {
-				case P: score += pawn_score[square]; break;
-				case K: score += king_score[square]; break;
-				case N: score += knight_score[square]; break;
-				case B: score += bishop_score[square]; break;
-				case R: score += rook_score[square]; break;
-				case p: score -= pawn_score[square]; break;
-				case k: score -= king_score[square]; break;
-				case n: score -= knight_score[square]; break;
-				case b: score -= bishop_score[square]; break;
-				case r: score -= rook_score[square]; break;
-			}
-
-			pop_bit(bitboard, square);
-		}
-	}
-
-	return (board_current.side == white) ? score : -score;
-}
-
 int main() {
 	init_sliders_attack_tables(bishop);
 	init_sliders_attack_tables(rook);
@@ -1871,17 +1933,7 @@ int main() {
 	init_all_king_attacks();
 	init_all_knight_attacks();
 
-	//uci_loop();
-
-	parse_fen("6k1/8/8/8/8/8/8/Q5K1 w - - 0 1");
-
-	print_board();
-
-	cout << endl;
-
-	cout << evaluate();
-
-	getchar();
+	uci_loop();
 
 	return 0;
 }
