@@ -1495,7 +1495,7 @@ bool make_move(int move, MoveType type) {
 	}
 	else {
 		if (get_move_capture_flag(move)) {
-			make_move(move, general_move);
+			return make_move(move, general_move);
 		}
 		else {
 			return false;
@@ -1689,11 +1689,11 @@ int evaluate() {
 			case N: score += knight_score[square]; break;
 			case B: score += bishop_score[square]; break;
 			case R: score += rook_score[square]; break;
-			case p: score -= pawn_score[square]; break;
-			case k: score -= king_score[square]; break;
-			case n: score -= knight_score[square]; break;
-			case b: score -= bishop_score[square]; break;
-			case r: score -= rook_score[square]; break;
+			case p: score -= pawn_score[mirror_score[square]]; break;
+			case k: score -= king_score[mirror_score[square]]; break;
+			case n: score -= knight_score[mirror_score[square]]; break;
+			case b: score -= bishop_score[mirror_score[square]]; break;
+			case r: score -= rook_score[mirror_score[square]]; break;
 			}
 
 			pop_bit(bitboard, square);
@@ -1706,18 +1706,65 @@ int evaluate() {
 // half move
 int ply = 0;
 
+int quiescence(int alpha, int beta) {
+	nodes++;
+
+	int evaluation = evaluate();
+
+	if (evaluation >= beta) {
+		return beta;
+	}
+
+	if (evaluation > alpha) {
+		alpha = evaluation;
+	}
+
+	MoveList move_list;
+	generate_moves(move_list);
+
+	for (int move_count = 0; move_count < move_list.count; move_count++) {
+		if (!get_move_capture_flag(move_list.moves[move_count])) {
+
+			continue;
+		}
+
+		BoardState backup = board_current;
+		ply++;
+
+		if (!make_move(move_list.moves[move_count], capture_move)) {
+			ply--;
+			continue;
+		}
+
+		int score = -quiescence(-beta, -alpha);
+
+		board_current = backup;
+		ply--;
+
+		if (score >= beta) {
+			return beta;
+		}
+
+		if (score > alpha) {
+			alpha = score;
+		}
+	}
+
+	return alpha;
+}
+
 int best_move;
 
-int nega_max(int alpha, int beta, int depth) {
+int negamax(int alpha, int beta, int depth) {
 	if (depth == 0) {
-		return evaluate();
+		return quiescence(alpha, beta);
 	}
 
 	nodes++;
 
-	bool is_in_check = is_square_attacked((board_current.side == white) ? 
-	get_least_significant_1_bit(board_current.bitboards[K]) : get_least_significant_1_bit(board_current.bitboards[k])
-		,(board_current.side == white ? black : white));
+	int king_square = get_least_significant_1_bit((board_current.side == white) ?
+		board_current.bitboards[K] : board_current.bitboards[k]);
+	bool is_in_check = is_square_attacked(king_square, (board_current.side == white ? black : white));
 
 	int legal_moves = 0;
 
@@ -1736,7 +1783,7 @@ int nega_max(int alpha, int beta, int depth) {
 
 		legal_moves++;
 
-		int score = -nega_max(-beta, -alpha, depth - 1);
+		int score = -negamax(-beta, -alpha, depth - 1);
 
 		board_current = backup;
 
@@ -1768,7 +1815,7 @@ int nega_max(int alpha, int beta, int depth) {
 }
 
 void search_position(int depth) {
-	int score = nega_max(-50000, 50000, depth);
+	int score = negamax(-50000, 50000, depth);
 
 	if (best_move) {
 		cout << "bestmove " << get_move_string(best_move) << endl;
@@ -1912,7 +1959,7 @@ void uci_loop() {
 		else if (strncmp(input, "ucinewgame", 10) == 0) {
 			parse_position("position startpos");
 		}
-		else if (strncmp(input, "go", 2) == 0) {
+		else if (strncmp(input, "go",  2) == 0) {
 			parse_go(input);
 		}
 		else if (strncmp(input, "quit", 4) == 0) {
