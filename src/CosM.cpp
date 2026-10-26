@@ -24,6 +24,7 @@ static const auto program_start = std::chrono::steady_clock::now();
 string empty_board_fen = "8/8/8/8/8/8/8/8 w - - 0 1";
 string starting_pos_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 string tricky_pos_fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+string cmk_position = "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 b - - 0 9";
 
 const U64 not_a_file{ 18374403900871474942ULL };
 const U64 not_ab_file{ 18229723555195321596ULL };
@@ -1703,8 +1704,113 @@ int evaluate() {
 	return (board_current.side == white) ? score : -score;
 }
 
+// most valuable victim & least valuable attacker
+
+/*
+
+	(Victims)  Pawn   King  Queen Knight Bishop   Rook
+  (Attackers)
+		Pawn   105    605    505    205    305    405
+	  Knight   104    604    504    204    304    404
+	  Bishop   103    603    503    203    303    403
+		Rook   102    602    502    202    302    402
+	   Queen   101    601    501    201    301    401
+		King   100    600    500    200    300    400
+
+*/
+
+const int mvv_lva[12][12] = {
+	// P
+	{105, 605, 505, 205, 305, 405, 105, 605, 505, 205, 305, 405},
+
+	// K
+	{100, 600, 500, 200, 300, 400, 100, 600, 500, 200, 300, 400},
+
+	// Q
+	{101, 601, 501, 201, 301, 401, 101, 601, 501, 201, 301, 401},
+
+	// N
+	{104, 604, 504, 204, 304, 404, 104, 604, 504, 204, 304, 404},
+
+	// B
+	{103, 603, 503, 203, 303, 403, 103, 603, 503, 203, 303, 403},
+
+	// R
+	{102, 602, 502, 202, 302, 402, 102, 602, 502, 202, 302, 402},
+
+	// p
+	{105, 605, 505, 205, 305, 405, 105, 605, 505, 205, 305, 405},
+
+	// k
+	{100, 600, 500, 200, 300, 400, 100, 600, 500, 200, 300, 400},
+
+	// q
+	{101, 601, 501, 201, 301, 401, 101, 601, 501, 201, 301, 401},
+
+	// n
+	{104, 604, 504, 204, 304, 404, 104, 604, 504, 204, 304, 404},
+
+	// b
+	{103, 603, 503, 203, 303, 403, 103, 603, 503, 203, 303, 403},
+
+	// r
+	{102, 602, 502, 202, 302, 402, 102, 602, 502, 202, 302, 402}
+};
+
 // half move
 int ply = 0;
+
+int score_move(int move) {
+	if (get_move_capture_flag(move)) {
+		int target_piece = P; // default covers en passant
+
+		int start_piece = P;
+		int end_piece = R;
+
+		if (board_current.side == white) {
+			start_piece = p;
+			end_piece = r;
+		}
+		else if (board_current.side == black) {
+			start_piece = P;
+			end_piece = R;
+		}
+
+		for (int piece = start_piece; piece <= end_piece; piece++) {
+			if (get_bit(board_current.bitboards[piece], get_move_target(move))) {
+				target_piece = piece;
+				break;
+			}
+		}
+
+		return mvv_lva[get_move_piece(move) - 1][target_piece - 1];
+	}
+	else {
+		return 0;
+	}
+}
+
+int sort_moves(MoveList& moves) {
+	int move_scores[256];
+
+	for (int move_index = 0; move_index < moves.count; move_index++) {
+		move_scores[move_index] = score_move(moves.moves[move_index]);
+	}
+
+	for (int current_move_index = 0; current_move_index < moves.count; current_move_index++) {
+		for (int next_move_index = current_move_index + 1; next_move_index < moves.count; next_move_index++) {
+			if (move_scores[current_move_index] < move_scores[next_move_index]) {
+				// swap scores
+				std::swap(move_scores[current_move_index], move_scores[next_move_index]);
+
+				// swap moves
+				std::swap(moves.moves[current_move_index], moves.moves[next_move_index]);
+			}
+		}
+	}
+
+	return 0;
+}
 
 int quiescence(int alpha, int beta) {
 	nodes++;
@@ -1721,6 +1827,8 @@ int quiescence(int alpha, int beta) {
 
 	MoveList move_list;
 	generate_moves(move_list);
+
+	sort_moves(move_list);
 
 	for (int move_count = 0; move_count < move_list.count; move_count++) {
 		if (!get_move_capture_flag(move_list.moves[move_count])) {
@@ -1766,10 +1874,16 @@ int negamax(int alpha, int beta, int depth) {
 		board_current.bitboards[K] : board_current.bitboards[k]);
 	bool is_in_check = is_square_attacked(king_square, (board_current.side == white ? black : white));
 
+	if (is_in_check) {
+		depth++;
+	}
+
 	int legal_moves = 0;
 
 	MoveList move_list;
 	generate_moves(move_list);
+
+	sort_moves(move_list);
 
 	for (int move_count = 0; move_count < move_list.count; move_count++) {
 		BoardState backup = board_current;
@@ -1818,7 +1932,7 @@ void search_position(int depth) {
 	int score = negamax(-50000, 50000, depth);
 
 	if (best_move) {
-		cout << "bestmove " << get_move_string(best_move) << endl;
+		cout << "bestmove " << get_move_string(best_move)  << " nodes: " << nodes << endl;
 	}
 }
 
@@ -1978,6 +2092,18 @@ void uci_loop() {
 	}
 }
 
+void print_moves_with_score(MoveList& moves) {
+	if (moves.count == 0) {
+		cout << "no moves" << endl;
+		return;
+	}
+
+	for (int i = 0; i < moves.count; i++) {
+		cout << get_move_string(moves.moves[i])
+			<< " score: " << score_move(moves.moves[i]) << endl;
+	}
+}
+
 int main() {
 	init_sliders_attack_tables(bishop);
 	init_sliders_attack_tables(rook);
@@ -1985,7 +2111,15 @@ int main() {
 	init_all_king_attacks();
 	init_all_knight_attacks();
 
-	uci_loop();
+	//uci_loop();
+
+	parse_fen(tricky_pos_fen);
+
+	print_board();
+
+	search_position(5);
+
+	cin.get();
 
 	return 0;
 }
